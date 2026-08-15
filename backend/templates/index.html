@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>AI Software Engineering Platform</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+
+</head>
+
+
+<body>
+
+<div class="container">
+
+
+    <!-- ====================================== -->
+    <!-- MAIN TITLE -->
+    <!-- ====================================== -->
+
+    <h1>AI Software Engineering Platform</h1>
+
+
+    <!-- ====================================== -->
+    <!-- PROJECT DESCRIPTION -->
+    <!-- ====================================== -->
+
+    <div class="section">
+
+        <h3>Project Description</h3>
+
+        <textarea
+            id="prompt"
+            rows="8"
+            placeholder="Describe your software project here..."></textarea>
+
+        <br><br>
+
+        <button id="analyzeBtn">
+            Analyze Requirements
+        </button>
+
+    </div>
+
+
+    <hr>
+
+
+    <!-- ====================================== -->
+    <!-- REQUIREMENT ANALYSIS -->
+    <!-- ====================================== -->
+
+    <div class="section">
+
+        <h2>📋 Requirement Analysis</h2>
+
+        <textarea
+            id="requirementsOutput"
+            rows="18"
+            readonly
+            style="width:100%; resize:vertical;"></textarea>
+
+        <br><br>
+
+        <button id="editBtn">
+            Edit
+        </button>
+
+        <button id="saveBtn" style="display:none;">
+            Save
+        </button>
+
+        <button id="cancelBtn" style="display:none;">
+            Cancel
+        </button>
+
+        <button id="architectureBtn">
+            Approve & Generate Architecture
+        </button>
+
+    </div>
+
+
+    <hr>
+
+
+    <!-- ====================================== -->
+    <!-- ARCHITECTURE -->
+    <!-- ====================================== -->
+
+    <div class="section">
+
+        <h2>🏗️ System Architecture</h2>
+
+        <div
+            class="output"
+            id="architectureOutput">
+
+            Waiting for Requirement Approval...
+
+        </div>
+
+
+        <br>
+
+
+        <!-- Architecture Diagram -->
+
+        <h3>🏛️ Architecture Diagram</h3>
+
+        <div id="architectureDiagram">
+
+            Waiting for Architecture Diagram...
+
+        </div>
+
+
+        <hr>
+
+
+        <!-- Project Flow -->
+
+        <h3>🔄 Project Flow</h3>
+
+        <div id="projectFlow">
+
+            Waiting for Project Flow...
+
+        </div>
+
+
+        <hr>
+
+
+        <!-- Actors -->
+
+        <h3>👥 Actors</h3>
+
+        <div id="actors">
+
+            Waiting for Actors...
+
+        </div>
+
+
+        <hr>
+
+
+        <!-- Modules -->
+
+        <h3>📦 Modules</h3>
+
+        <div id="modules">
+
+            Waiting for Modules...
+
+        </div>
+
+
+        <hr>
+
+
+        <!-- REST APIs -->
+
+        <h3>🌐 REST APIs</h3>
+
+        <div id="restApis">
+
+            Waiting for REST APIs...
+
+        </div>
+
+
+        <hr>
+
+
+        <!-- Technology Stack -->
+
+        <h3>💻 Technology Stack</h3>
+
+        <div id="technologyStack">
+
+            Waiting for Technology Stack...
+
+        </div>
+
+
+        <hr>
+
+
+        <!-- Folder Structure -->
+
+        <h3>📁 Folder Structure</h3>
+
+        <div id="folderStructure">
+
+            Waiting for Folder Structure...
+
+        </div>
+
+    </div>
+
+    <!--
+            This button remains disabled until
+            architecture generation is successful.
+        -->
+
+        <button
+            id="databaseBtn"
+            disabled>
+
+            Generate Database Design
+
+        </button>
+
+    <hr>
+
+
+    <!-- ====================================== -->
+<!-- DATABASE DESIGN -->
+<!-- ====================================== -->
+
+<div class="section">
+
+    <h2>🗄️ Database Design</h2>
+
+    <button
+        id="databaseBtn"
+        disabled>
+
+        Generate Database Design
+
+    </button>
+
+    <br><br>
+
+    <div
+        class="output"
+        id="databaseOutput">
+
+        Waiting for Architecture...
+
+    </div>
+
+    <hr>
+
+    <h3>📋 Database Tables</h3>
+
+    <div id="databaseTables">
+
+        Waiting for Tables...
+
+    </div>
+
+    <hr>
+
+    <h3>🗂️ Entity Relationship Diagram</h3>
+
+    <div id="databaseERD">
+
+        Waiting for ER Diagram...
+
+    </div>
+
+    <hr>
+
+    <h3>📝 PostgreSQL SQL Schema</h3>
+
+    <pre id="databaseSQL">
+
+Waiting for SQL Schema...
+
+    </pre>
+
+</div>
+
+<hr>
+
+<!-- ====================================== -->
+<!-- BACKEND DEVELOPMENT -->
+<!-- ====================================== -->
+
+<div class="section">
+
+    <h2>⚙️ Backend Development</h2>
+
+    <button
+        id="backendBtn"
+        disabled>
+
+        Generate Backend
+
+    </button>
+
+    <br><br>
+
+    <div
+        class="output"
+        id="backendOutput">
+
+        Waiting for Database Design...
+
+    </div>
+
+    <hr>
+
+    <h3>📁 Backend Structure</h3>
+
+    <pre id="backendStructure">
+
+Waiting for Backend Structure...
+
+    </pre>
+
+    <hr>
+
+    
+
+</div>
+
+<hr>
+
+    <!-- ====================================== -->
+<!-- FRONTEND DEVELOPMENT -->
+<!-- ====================================== -->
+
+<div class="section">
+
+    <h2>🎨 Frontend Development</h2>
+
+    <button
+        id="frontendBtn"
+        disabled>
+
+        Generate Frontend Design
+
+    </button>
+
+    <br><br>
+
+    <div
+        class="output"
+        id="frontendOutput">
+
+        Waiting for Backend Development...
+
+    </div>
+
+    <hr>
+
+    <h3>💻 Frontend Technology Stack</h3>
+
+    <pre id="frontendTechStack">
+
+Waiting for Frontend Technology Stack...
+
+    </pre>
+
+    <hr>
+
+    <h3>📁 Frontend Folder Structure</h3>
+
+    <pre id="frontendStructure">
+
+Waiting for Frontend Folder Structure...
+
+    </pre>
+
+    <hr>
+
+    <h3>📄 Frontend Pages</h3>
+
+    <pre id="frontendPages">
+
+Waiting for Frontend Pages...
+
+    </pre>
+
+</div>
+
+<hr>
+
+
+    <hr>
+
+
+    <!-- ====================================== -->
+    <!-- DOCUMENTATION -->
+    <!-- ====================================== -->
+
+    <div class="section">
+
+        <h2>📄 Documentation</h2>
+
+        <div
+            class="output"
+            id="documentationOutput">
+
+            Waiting for Frontend Development...
+
+        </div>
+
+    </div>
+
+
+    <hr>
+
+
+    <!-- ====================================== -->
+    <!-- DOWNLOAD PROJECT -->
+    <!-- ====================================== -->
+
+    <button
+        id="downloadBtn"
+        disabled>
+
+        Download Project
+
+    </button>
+
+
+</div>
+
+
+<!-- ====================================== -->
+<!-- MERMAID -->
+<!-- ====================================== -->
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+
+
+<script>
+
+    mermaid.initialize({
+
+        startOnLoad: false,
+
+        theme: "default",
+
+        securityLevel: "loose"
+
+    });
+
+</script>
+
+
+<!-- ====================================== -->
+<!-- APPLICATION JAVASCRIPT -->
+<!-- ====================================== -->
+<script src="{{ url_for('static', filename='js/frontend.js') }}"></script>
+
+ <script src="{{ url_for('static', filename='js/backend.js') }}"></script>
+
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+
+<script src="{{ url_for('static', filename='js/architecture.js') }}"></script>
+
+<script src="{{ url_for('static', filename='js/database.js') }}"></script>
+
+
+</body>
+
+</html>
