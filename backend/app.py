@@ -1,5 +1,15 @@
-from flask import Flask, render_template, request, jsonify
+import os
+import zipfile
+from flask import send_file, jsonify
 
+from flask import (
+    Flask,
+    render_template,
+    request,
+    jsonify,
+    send_file
+)
+from agents.project_generator import generate_project
 from agents.requirement_agent import analyze_requirements
 from agents.architecture_agent import generate_architecture
 from agents.database_agent import generate_database
@@ -19,6 +29,17 @@ def home():
 
 
 # ==================================================
+# HEALTH CHECK
+# ==================================================
+
+@app.route("/health")
+def health():
+    return jsonify({
+        "status": "running"
+    })
+
+
+# ==================================================
 # REQUIREMENTS API
 # ==================================================
 
@@ -35,7 +56,10 @@ def api_requirements():
                 "message": "Request data is missing."
             }), 400
 
-        prompt = data.get("prompt", "").strip()
+        prompt = data.get(
+            "prompt",
+            ""
+        ).strip()
 
         if not prompt:
             return jsonify({
@@ -43,7 +67,9 @@ def api_requirements():
                 "message": "Project description cannot be empty."
             }), 400
 
-        requirements = analyze_requirements(prompt)
+        requirements = analyze_requirements(
+            prompt
+        )
 
         return jsonify({
             "success": True,
@@ -52,7 +78,10 @@ def api_requirements():
 
     except Exception as e:
 
-        print("Requirement Generation Error:", str(e))
+        print(
+            "Requirement Generation Error:",
+            str(e)
+        )
 
         return jsonify({
             "success": False,
@@ -331,7 +360,384 @@ def api_frontend():
             "message": str(e)
         }), 500
 
+# ==================================================
+# PROJECT GENERATION API
+# ==================================================
 
+@app.route("/api/project", methods=["POST"])
+def api_project():
+
+    try:
+
+        data = request.get_json()
+
+        if not data:
+            return jsonify({
+                "success": False,
+                "message": "Request data is missing."
+            }), 400
+
+        requirements = data.get(
+            "requirements",
+            ""
+        )
+
+        architecture = data.get(
+            "architecture",
+            {}
+        )
+
+        database = data.get(
+            "database",
+            {}
+        )
+
+        backend = data.get(
+            "backend",
+            {}
+        )
+
+        frontend = data.get(
+            "frontend",
+            {}
+        )
+
+        project = generate_project(
+            requirements,
+            architecture,
+            database,
+            backend,
+            frontend
+        )
+
+        return jsonify(project)
+
+    except Exception as e:
+
+        print(
+            "Project Generation Error:",
+            str(e)
+        )
+
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
+
+
+# ==================================================
+# PROJECT FILE LIST API
+# ==================================================
+
+@app.route("/api/project/files")
+def get_project_files():
+
+    try:
+
+        project_path = os.path.join(
+            "generated_projects",
+            "project"
+        )
+
+        files = []
+
+        if not os.path.exists(
+            project_path
+        ):
+
+            return jsonify({
+
+                "success": False,
+
+                "message":
+                "Project folder not found."
+
+            }), 404
+
+        for root, dirs, filenames in os.walk(
+            project_path
+        ):
+
+            for file in filenames:
+
+                full_path = os.path.join(
+                    root,
+                    file
+                )
+
+                relative_path = os.path.relpath(
+                    full_path,
+                    project_path
+                )
+
+                files.append(
+                    relative_path
+                )
+
+        return jsonify({
+
+            "success": True,
+
+            "files": files
+
+        })
+
+    except Exception as e:
+
+        return jsonify({
+
+            "success": False,
+
+            "message": str(e)
+
+        }), 500
+
+
+# ==================================================
+# PROJECT FILE CONTENT API
+# ==================================================
+
+@app.route("/api/project/file")
+def get_project_file():
+
+    try:
+
+        file_path = request.args.get(
+            "path"
+        )
+
+        if not file_path:
+
+            return jsonify({
+
+                "success": False,
+
+                "message":
+                "File path missing."
+
+            }), 400
+
+        project_root = os.path.join(
+            "generated_projects",
+            "project"
+        )
+
+        full_path = os.path.join(
+            project_root,
+            file_path
+        )
+
+        if not os.path.exists(
+            full_path
+        ):
+
+            return jsonify({
+
+                "success": False,
+
+                "message":
+                "File not found."
+
+            }), 404
+
+        with open(
+            full_path,
+            "r",
+            encoding="utf-8"
+        ) as file:
+
+            content = file.read()
+
+        return jsonify({
+
+            "success": True,
+
+            "content": content
+
+        })
+
+    except Exception as e:
+
+        return jsonify({
+
+            "success": False,
+
+            "message": str(e)
+
+        }), 500
+
+# ==================================================
+# PROJECT FILES API
+# ==================================================
+
+@app.route("/api/project-files", methods=["GET"])
+def api_project_files():
+
+    try:
+
+        project_path = os.path.join(
+            "generated_projects",
+            "project"
+        )
+
+        files_data = []
+
+        for root, dirs, files in os.walk(project_path):
+
+            for file in files:
+
+                file_path = os.path.join(
+                    root,
+                    file
+                )
+
+                relative_path = os.path.relpath(
+                    file_path,
+                    project_path
+                )
+
+                try:
+
+                    with open(
+                        file_path,
+                        "r",
+                        encoding="utf-8"
+                    ) as f:
+
+                        content = f.read()
+
+                except Exception:
+
+                    content = "Unable to read file."
+
+                files_data.append({
+
+                    "name": file,
+
+                    "path": relative_path,
+
+                    "content": content
+
+                })
+
+        return jsonify({
+
+            "success": True,
+
+            "files": files_data
+
+        })
+
+    except Exception as e:
+
+        return jsonify({
+
+            "success": False,
+
+            "message": str(e)
+
+        }), 500
+    
+
+
+
+
+# ============================================================
+# CREATE ZIP
+# ============================================================
+
+def create_project_zip(project_path):
+
+    zip_path = os.path.join(
+        "generated_projects",
+        "project.zip"
+    )
+
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
+
+    with zipfile.ZipFile(
+        zip_path,
+        "w",
+        zipfile.ZIP_DEFLATED
+    ) as zipf:
+
+        for root, dirs, files in os.walk(project_path):
+
+            for file in files:
+
+                file_path = os.path.join(
+                    root,
+                    file
+                )
+
+                arcname = os.path.relpath(
+                    file_path,
+                    project_path
+                )
+
+                zipf.write(
+                    file_path,
+                    arcname
+                )
+
+    return zip_path
+
+
+# ============================================================
+# DOWNLOAD PROJECT
+# ============================================================
+
+@app.route(
+    "/api/download-project",
+    methods=["GET"]
+)
+def download_project():
+
+    try:
+
+        project_path = os.path.join(
+            "generated_projects",
+            "project"
+        )
+
+        if not os.path.exists(project_path):
+
+            return jsonify({
+
+                "success": False,
+
+                "message":
+                    "Project not found."
+
+            }), 404
+
+        zip_path = create_project_zip(
+            project_path
+        )
+
+        return send_file(
+
+            zip_path,
+
+            as_attachment=True,
+
+            download_name="project.zip"
+
+        )
+
+    except Exception as e:
+
+        return jsonify({
+
+            "success": False,
+
+            "message": str(e)
+
+        }), 500
+
+    
 # ==================================================
 # MAIN
 # ==================================================

@@ -17,36 +17,28 @@ if (frontendBtn) {
 
             if (!window.latestRequirements) {
 
-                alert(
-                    "Requirements are missing."
-                );
+                alert("Requirements are missing.");
 
                 return;
             }
 
             if (!window.latestArchitecture) {
 
-                alert(
-                    "Architecture is missing."
-                );
+                alert("Architecture is missing.");
 
                 return;
             }
 
             if (!window.latestDatabase) {
 
-                alert(
-                    "Database Design is missing."
-                );
+                alert("Database Design is missing.");
 
                 return;
             }
 
             if (!window.latestBackend) {
 
-                alert(
-                    "Backend Design is missing."
-                );
+                alert("Backend Design is missing.");
 
                 return;
             }
@@ -60,9 +52,19 @@ if (frontendBtn) {
                     "frontendOutput"
                 );
 
+            const frontendTechStack =
+                document.getElementById(
+                    "frontendTechStack"
+                );
+
             const frontendStructure =
                 document.getElementById(
                     "frontendStructure"
+                );
+
+            const frontendPages =
+                document.getElementById(
+                    "frontendPages"
                 );
 
             frontendOutput.innerHTML =
@@ -116,7 +118,7 @@ if (frontendBtn) {
                 );
 
                 // ====================================
-                // HANDLE ERROR
+                // ERROR
                 // ====================================
 
                 if (
@@ -149,12 +151,48 @@ if (frontendBtn) {
                 frontendOutput.innerHTML =
                     "<h3>✅ Frontend Design Generated Successfully</h3>";
 
-                frontendStructure.textContent =
-                    frontend.structure ||
-                    "No Frontend Design Generated.";
+                // ====================================
+                // FRONTEND TECH STACK
+                // ====================================
+
+                frontendTechStack.textContent =
+                    frontend.tech_stack ||
+                    "No Technology Stack Generated.";
 
                 // ====================================
-                // ENABLE DOCUMENTATION STAGE
+                // FRONTEND STRUCTURE
+                // ====================================
+
+                frontendStructure.textContent =
+                    frontend.structure ||
+                    "No Frontend Structure Generated.";
+
+                // ====================================
+                // FRONTEND PAGES
+                // ====================================
+
+                frontendPages.textContent =
+                    frontend.pages ||
+                    "No Frontend Pages Generated.";
+
+                // ====================================
+                // ENABLE PROJECT GENERATION
+                // ====================================
+
+                const projectBtn =
+                    document.getElementById(
+                        "projectBtn"
+                    );
+
+                if (projectBtn) {
+
+                    projectBtn.disabled =
+                        false;
+
+                }
+
+                // ====================================
+                // DOCUMENTATION STATUS
                 // ====================================
 
                 const documentationOutput =
@@ -165,7 +203,7 @@ if (frontendBtn) {
                 if (documentationOutput) {
 
                     documentationOutput.innerHTML =
-                        "✅ Frontend Design Completed. Documentation phase can begin.";
+                        "✅ Frontend Design Completed. Project Generation can begin.";
 
                 }
 
@@ -185,7 +223,7 @@ if (frontendBtn) {
                 frontendOutput.innerHTML = `
                     <span style="color:red;">
                         Frontend Generation Failed.
-                        Check Flask terminal.
+                        Check Flask Terminal.
                     </span>
                 `;
 

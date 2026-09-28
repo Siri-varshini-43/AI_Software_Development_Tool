@@ -317,3 +317,268 @@ hr{
     }
 
 }
+
+/* =========================================
+   PROJECT EXPLORER
+========================================= */
+
+.explorer-container{
+
+    display:flex;
+
+    gap:20px;
+
+    margin-top:20px;
+
+    min-height:500px;
+
+}
+
+/* =========================================
+   FILE PANEL
+========================================= */
+
+.folder-panel{
+
+    width:30%;
+
+    background:white;
+
+    border:1px solid #ddd;
+
+    border-radius:10px;
+
+    padding:15px;
+
+    overflow-y:auto;
+
+}
+
+.folder-panel h3{
+
+    margin-bottom:15px;
+
+    color:#0d6efd;
+
+}
+
+.folder-panel ul{
+
+    list-style:none;
+
+    margin:0;
+
+    padding:0;
+
+}
+
+.folder-panel li{
+
+    padding:10px;
+
+    border-bottom:1px solid #eee;
+
+    cursor:pointer;
+
+    transition:0.3s;
+
+    word-break:break-word;
+
+}
+
+.folder-panel li:hover{
+
+    background:#f4f7fc;
+
+    color:#0d6efd;
+
+}
+
+/* =========================================
+   CODE VIEWER
+========================================= */
+
+.code-panel{
+
+    width:70%;
+
+    background:white;
+
+    border:1px solid #ddd;
+
+    border-radius:10px;
+
+    padding:15px;
+
+}
+
+.code-panel h3{
+
+    color:#0d6efd;
+
+    margin-bottom:15px;
+
+}
+
+#codeViewer{
+
+    background:#1e1e1e;
+
+    color:#ffffff;
+
+    padding:20px;
+
+    border-radius:10px;
+
+    min-height:450px;
+
+    overflow:auto;
+
+    white-space:pre-wrap;
+
+    font-family:Consolas, monospace;
+
+    font-size:14px;
+
+}
+
+/* =========================================
+   PROJECT OUTPUT
+========================================= */
+
+#projectOutput{
+
+    background:#f8f9fa;
+
+    border:1px solid #ddd;
+
+    border-radius:10px;
+
+    padding:20px;
+
+}
+
+/* =========================================
+   PROJECT BUTTON
+========================================= */
+
+#projectBtn{
+
+    background:#6610f2;
+
+}
+
+#projectBtn:hover{
+
+    background:#520dc2;
+
+}
+
+/* =========================================
+   RESPONSIVE
+========================================= */
+
+@media(max-width:768px){
+
+    .explorer-container{
+
+        flex-direction:column;
+
+    }
+
+    .folder-panel{
+
+        width:100%;
+
+    }
+
+    .code-panel{
+
+        width:100%;
+
+    }
+
+}
+
+/* =========================================
+   Generated Files
+========================================= */
+
+.generated-file {
+
+    margin-top: 20px;
+
+}
+
+.generated-file h4 {
+
+    color: #0d6efd;
+
+    margin-bottom: 10px;
+
+}
+
+.generated-file pre {
+
+    background: #1e1e1e;
+
+    color: #ffffff;
+
+    padding: 15px;
+
+    border-radius: 8px;
+
+    overflow-x: auto;
+
+    white-space: pre-wrap;
+
+    max-height: 500px;
+
+}
+
+/* =========================================
+   Folder Tree Explorer
+========================================= */
+
+.folder-item {
+
+    cursor: pointer;
+    padding: 8px;
+    font-weight: bold;
+    color: #0d6efd;
+
+}
+
+.folder-item:hover {
+
+    background: #eef4ff;
+
+}
+
+.file-item {
+
+    cursor: pointer;
+    padding: 6px 6px 6px 25px;
+    color: #333;
+
+}
+
+.file-item:hover {
+
+    background: #f5f5f5;
+
+}
+
+.file-list {
+
+    display: none;
+
+    margin-left: 15px;
+
+}
+
+.file-list.show {
+
+    display: block;
+
+}
