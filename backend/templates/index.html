@@ -43,7 +43,7 @@
         <br><br>
 
         <button id="analyzeBtn">
-            Analyze Requirements
+            Generate Requirements
         </button>
 
     </div>
@@ -68,8 +68,8 @@
 
         <br><br>
 
-        <button id="editBtn">
-            Edit
+        <button id="editBtn" disabled>
+            Edit Requirements
         </button>
 
         <button id="saveBtn" style="display:none;">
@@ -80,8 +80,8 @@
             Cancel
         </button>
 
-        <button id="architectureBtn">
-            Approve & Generate Architecture
+        <button id="generateProjectBtn" disabled>
+            Generate Complete Project
         </button>
 
     </div>
@@ -206,19 +206,6 @@
 
     </div>
 
-    <!--
-            This button remains disabled until
-            architecture generation is successful.
-        -->
-
-        <button
-            id="databaseBtn"
-            disabled>
-
-            Generate Database Design
-
-        </button>
-
     <hr>
 
 
@@ -229,16 +216,6 @@
 <div class="section">
 
     <h2>🗄️ Database Design</h2>
-
-    <button
-        id="databaseBtn"
-        disabled>
-
-        Generate Database Design
-
-    </button>
-
-    <br><br>
 
     <div
         class="output"
@@ -282,138 +259,25 @@ Waiting for SQL Schema...
 
 <hr>
 
-<!-- ====================================== -->
-<!-- BACKEND DEVELOPMENT -->
-<!-- ====================================== -->
+<div class="section" id="generationProgress">
 
-<div class="section">
+    <h2>Generation Progress / Logs</h2>
 
-    <h2>⚙️ Backend Development</h2>
+    <p id="generationStatus" role="status" aria-live="polite">
+        Waiting for project requirements.
+    </p>
 
-    <button
-        id="backendBtn"
-        disabled>
-
-        Generate Backend
-
-    </button>
-
-    <br><br>
-
-    <div
-        class="output"
-        id="backendOutput">
-
-        Waiting for Database Design...
-
-    </div>
-
-    <hr>
-
-    <h3>📁 Backend Structure</h3>
-
-    <pre id="backendStructure">
-
-Waiting for Backend Structure...
-
-    </pre>
-
-    <hr>
-
-    
+    <ol id="generationLogs" aria-live="polite">
+        <li>Generation logs will appear here.</li>
+    </ol>
 
 </div>
 
-<hr>
+<div class="section" id="generatedProjectSection" hidden>
 
-    <!-- ====================================== -->
-<!-- FRONTEND DEVELOPMENT -->
-<!-- ====================================== -->
+    <h2>Generated Project</h2>
 
-<div class="section">
-
-    <h2>🎨 Frontend Development</h2>
-
-    <button
-        id="frontendBtn"
-        disabled>
-
-        Generate Frontend Design
-
-    </button>
-
-    <br><br>
-
-    <div
-        class="output"
-        id="frontendOutput">
-
-        Waiting for Backend Development...
-
-    </div>
-
-    <hr>
-
-    <h3>💻 Frontend Technology Stack</h3>
-
-    <pre id="frontendTechStack">
-
-Waiting for Frontend Technology Stack...
-
-    </pre>
-
-    <hr>
-
-    <h3>📁 Frontend Folder Structure</h3>
-
-    <pre id="frontendStructure">
-
-Waiting for Frontend Folder Structure...
-
-    </pre>
-
-    <hr>
-
-    <h3>📄 Frontend Pages</h3>
-
-    <pre id="frontendPages">
-
-Waiting for Frontend Pages...
-
-    </pre>
-
-</div>
-
-<hr>
-
-
-    <hr>
-
-    <!-- ====================================== -->
-<!-- PROJECT GENERATION -->
-<!-- ====================================== -->
-
-<div class="section">
-
-    <h2>🚀 Project Generation</h2>
-
-    <button
-        id="projectBtn"
-        disabled>
-
-        Generate Complete Project
-
-    </button>
-
-    <br><br>
-
-    <div
-        class="output"
-        id="projectOutput">
-
-        Waiting for Frontend Design...
-
-    </div>
+    <div class="output" id="projectOutput"></div>
 
 </div>
 
@@ -423,40 +287,63 @@ Waiting for Frontend Pages...
 <!-- GENERATED PROJECT EXPLORER -->
 <!-- ====================================== -->
 
-<div class="section">
+<div class="section" id="projectExplorerSection" hidden>
 
     <h2>📁 Generated Project Explorer</h2>
 
-    <div class="explorer-container">
+    <div class="ide-shell">
+        <aside class="ide-file-sidebar">
+            <div class="ide-sidebar-heading">
+                <strong>FILES &amp; FOLDERS</strong>
+                <span id="fileCountBadge">0</span>
+            </div>
 
-        <!-- Folder Tree -->
+            <label class="ide-file-search">
+                <span aria-hidden="true">⌕</span>
+                <input id="fileSearch" type="search" placeholder="Search files..." autocomplete="off">
+            </label>
 
-        <div class="folder-panel">
+            <div class="ide-file-filters" id="fileFilters" aria-label="Filter files">
+                <button type="button" class="active" data-file-filter="all">All</button>
+                <button type="button" data-file-filter="frontend">Frontend</button>
+                <button type="button" data-file-filter="backend">Backend</button>
+                <button type="button" data-file-filter="database">Database</button>
+                <button type="button" data-file-filter="config">Config</button>
+            </div>
 
-    <h3>Folders & Files</h3>
+            <div id="projectTree" class="ide-tree" aria-label="Generated project files">
+                Generate Project First
+            </div>
+        </aside>
 
-    <div id="projectTree">
+        <section class="ide-workspace" aria-label="Generated code editor">
+            <div class="ide-tabs">
+                <div class="ide-tab active">
+                    <span id="editorTabName">No file selected</span>
+                    <span class="ide-tab-indicator" aria-hidden="true"></span>
+                </div>
+            </div>
 
-        Generate Project First
+            <div class="ide-toolbar">
+                <div class="ide-file-metadata">
+                    <span>path:</span>
+                    <code id="codeFileName">Select a file</code>
+                    <span id="languageBadge" class="ide-language-badge">TEXT</span>
+                    <span id="lineCount">0 lines</span>
+                </div>
+                <div class="ide-actions">
+                    <span id="editorFeedback" role="status" aria-live="polite"></span>
+                    <button id="copyCodeButton" type="button" disabled>Copy</button>
+                    <button id="downloadCodeButton" type="button" disabled>Download</button>
+                    <button id="fullscreenEditorButton" type="button" aria-label="Toggle editor fullscreen">⛶</button>
+                </div>
+            </div>
 
-    </div>
-
-</div>
-
-        <!-- Code Viewer -->
-
-        <div class="code-panel">
-
-            <h3>Generated Code</h3>
-
-            <pre id="codeViewer">
-
-Select a file to view code.
-
-            </pre>
-
-        </div>
-
+            <div class="ide-code-area">
+                <pre id="codeLineNumbers" aria-hidden="true">1</pre>
+                <pre id="codeViewer"><code class="language-plaintext">Select a file to view code.</code></pre>
+            </div>
+        </section>
     </div>
 
 </div>
@@ -468,7 +355,7 @@ Select a file to view code.
     <!-- DOCUMENTATION -->
     <!-- ====================================== -->
 
-    <div class="section">
+    <div class="section" id="documentationSection" hidden>
 
         <h2>📄 Documentation</h2>
 
@@ -476,7 +363,7 @@ Select a file to view code.
             class="output"
             id="documentationOutput">
 
-            Waiting for Frontend Development...
+            Project documentation will appear after generation.
 
         </div>
 

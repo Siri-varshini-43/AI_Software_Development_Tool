@@ -170,6 +170,46 @@ button:hover{
 
 }
 
+#generationStatus{
+
+    font-weight:600;
+
+    margin-bottom:12px;
+
+}
+
+#generationLogs{
+
+    max-height:320px;
+
+    overflow-y:auto;
+
+    padding:12px 12px 12px 36px;
+
+    background:#fff;
+
+    border:1px solid #ddd;
+
+    border-radius:6px;
+
+}
+
+#generationLogs li{
+
+    padding:6px 0;
+
+    border-bottom:1px solid #eee;
+
+    overflow-wrap:anywhere;
+
+}
+
+#generationLogs .log-error{
+
+    color:#b42318;
+
+}
+
 /* =========================================
    Mermaid Diagrams
 ========================================= */
@@ -372,6 +412,69 @@ hr{
 
 }
 
+.project-tree-list{
+
+    list-style:none;
+
+    margin:0;
+
+    padding:0 0 0 12px;
+
+}
+
+.project-tree-folder{
+
+    margin:0;
+
+}
+
+.tree-entry{
+
+    display:block;
+
+    width:100%;
+
+    margin:0;
+
+    padding:7px 8px;
+
+    border-radius:5px;
+
+    background:transparent;
+
+    color:#333;
+
+    font:inherit;
+
+    text-align:left;
+
+    transform:none;
+
+}
+
+.tree-entry:hover,
+.tree-entry.selected{
+
+    background:#eaf2ff;
+
+    color:#0d6efd;
+
+    transform:none;
+
+}
+
+.tree-file{
+
+    overflow-wrap:anywhere;
+
+}
+
+.project-tree-children{
+
+    padding-left:10px;
+
+}
+
 .folder-panel li{
 
     padding:10px;
@@ -420,6 +523,40 @@ hr{
 
 }
 
+.editor-toolbar{
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:space-between;
+
+    gap:12px;
+
+    margin-bottom:12px;
+
+}
+
+.editor-toolbar h3{
+
+    margin:0;
+
+}
+
+#codeFileName{
+
+    overflow:hidden;
+
+    color:#555;
+
+    font-family:Consolas, monospace;
+
+    text-overflow:ellipsis;
+
+    white-space:nowrap;
+
+}
+
 #codeViewer{
 
     background:#1e1e1e;
@@ -439,6 +576,14 @@ hr{
     font-family:Consolas, monospace;
 
     font-size:14px;
+
+}
+
+#codeViewer code{
+
+    display:block;
+
+    min-height:410px;
 
 }
 
@@ -560,6 +705,614 @@ hr{
     cursor: pointer;
     padding: 6px 6px 6px 25px;
     color: #333;
+
+}
+
+/* Generated project IDE */
+
+.ide-shell{
+
+    display:flex;
+
+    width:100%;
+
+    height:min(78vh, 780px);
+
+    min-height:560px;
+
+    overflow:hidden;
+
+    border:1px solid #202a42;
+
+    border-radius:10px;
+
+    background:#070b1b;
+
+    color:#d8e2f5;
+
+    font-family:Consolas, "Segoe UI", monospace;
+
+}
+
+.ide-file-sidebar{
+
+    display:flex;
+
+    flex:0 0 30%;
+
+    min-width:245px;
+
+    flex-direction:column;
+
+    overflow:hidden;
+
+    border-right:1px solid #253149;
+
+    background:#080d1e;
+
+}
+
+.ide-sidebar-heading{
+
+    display:flex;
+
+    min-height:48px;
+
+    align-items:center;
+
+    justify-content:space-between;
+
+    padding:0 16px;
+
+    color:#a9c1e9;
+
+    font:600 13px "Segoe UI", Arial, sans-serif;
+
+    letter-spacing:.04em;
+
+}
+
+#fileCountBadge{
+
+    color:#7f91ae;
+
+    font-size:12px;
+
+}
+
+.ide-file-search{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:8px;
+
+    margin:4px 10px 10px;
+
+    padding:0 10px;
+
+    border:1px solid #26334d;
+
+    border-radius:7px;
+
+    background:#111a2e;
+
+    color:#8194b2;
+
+}
+
+.ide-file-search input{
+
+    width:100%;
+
+    padding:9px 0;
+
+    border:0;
+
+    outline:0;
+
+    background:transparent;
+
+    color:#e4edfc;
+
+    font-size:13px;
+
+}
+
+.ide-file-search input::placeholder{
+
+    color:#7485a2;
+
+}
+
+.ide-file-filters{
+
+    display:flex;
+
+    flex-wrap:wrap;
+
+    gap:5px;
+
+    padding:0 9px 12px;
+
+    border-bottom:1px solid #202a42;
+
+}
+
+.ide-file-filters button{
+
+    margin:0;
+
+    padding:5px 8px;
+
+    border:1px solid transparent;
+
+    border-radius:5px;
+
+    background:#111a2e;
+
+    color:#a9bad5;
+
+    font-size:11px;
+
+    transform:none;
+
+}
+
+.ide-file-filters button:hover,
+.ide-file-filters button.active{
+
+    border-color:#5549d7;
+
+    background:#211d58;
+
+    color:#e0ddff;
+
+    transform:none;
+
+}
+
+.ide-tree{
+
+    flex:1;
+
+    overflow:auto;
+
+    padding:10px 7px;
+
+    color:#d6e0f2;
+
+    font-size:13px;
+
+}
+
+.ide-tree .project-tree-list{
+
+    margin:0;
+
+    padding:0 0 0 13px;
+
+    list-style:none;
+
+}
+
+.ide-tree > .project-tree-list{
+
+    padding-left:0;
+
+}
+
+.ide-tree .project-tree-folder,
+.ide-tree .project-tree-list li{
+
+    margin:0;
+
+    padding:0;
+
+    border:0;
+
+}
+
+.ide-tree .tree-entry{
+
+    overflow:hidden;
+
+    width:100%;
+
+    margin:1px 0;
+
+    padding:6px 8px;
+
+    border:1px solid transparent;
+
+    border-radius:5px;
+
+    background:transparent;
+
+    color:#c9d7ed;
+
+    font:12px Consolas, "Segoe UI", monospace;
+
+    text-align:left;
+
+    text-overflow:ellipsis;
+
+    white-space:nowrap;
+
+    transform:none;
+
+}
+
+.ide-tree .tree-folder{
+
+    color:#dce7f8;
+
+}
+
+.ide-tree .tree-file:hover,
+.ide-tree .tree-folder:hover{
+
+    background:#111a2e;
+
+    color:#fff;
+
+    transform:none;
+
+}
+
+.ide-tree .tree-file.selected{
+
+    border-color:#5549d7;
+
+    background:#211d58;
+
+    color:#fff;
+
+}
+
+.ide-workspace{
+
+    display:flex;
+
+    min-width:0;
+
+    flex:1;
+
+    flex-direction:column;
+
+    background:#070b1b;
+
+}
+
+.ide-workspace:fullscreen{
+
+    width:100vw;
+
+    height:100vh;
+
+    border-radius:0;
+
+}
+
+.ide-tabs{
+
+    display:flex;
+
+    min-height:46px;
+
+    align-items:flex-end;
+
+    padding:0 10px;
+
+    border-bottom:1px solid #202a42;
+
+    background:#080d1e;
+
+}
+
+.ide-tab{
+
+    position:relative;
+
+    display:flex;
+
+    min-width:150px;
+
+    max-width:280px;
+
+    height:39px;
+
+    align-items:center;
+
+    padding:0 14px;
+
+    border:1px solid #202a42;
+
+    border-bottom:0;
+
+    border-radius:8px 8px 0 0;
+
+    background:#10182b;
+
+    color:#57e8dc;
+
+    font-size:13px;
+
+}
+
+.ide-tab span:first-child{
+
+    overflow:hidden;
+
+    text-overflow:ellipsis;
+
+    white-space:nowrap;
+
+}
+
+.ide-tab-indicator{
+
+    position:absolute;
+
+    top:-1px;
+
+    right:0;
+
+    left:0;
+
+    height:2px;
+
+    border-radius:8px 8px 0 0;
+
+    background:#6558f5;
+
+}
+
+.ide-toolbar{
+
+    display:flex;
+
+    min-height:48px;
+
+    align-items:center;
+
+    justify-content:space-between;
+
+    gap:12px;
+
+    padding:6px 14px;
+
+    border-bottom:1px solid #202a42;
+
+    background:#0c1325;
+
+}
+
+.ide-file-metadata,
+.ide-actions{
+
+    display:flex;
+
+    min-width:0;
+
+    align-items:center;
+
+    gap:9px;
+
+    color:#8092b0;
+
+    font:12px "Segoe UI", Arial, sans-serif;
+
+}
+
+.ide-file-metadata code{
+
+    overflow:hidden;
+
+    color:#dce7f8;
+
+    font:12px Consolas, monospace;
+
+    text-overflow:ellipsis;
+
+    white-space:nowrap;
+
+}
+
+.ide-language-badge{
+
+    padding:3px 7px;
+
+    border:1px solid #155b66;
+
+    border-radius:5px;
+
+    background:#092b36;
+
+    color:#62e5dd;
+
+    font-size:10px;
+
+}
+
+.ide-actions button{
+
+    margin:0;
+
+    padding:6px 9px;
+
+    border:1px solid #293752;
+
+    border-radius:5px;
+
+    background:#152039;
+
+    color:#dce7f8;
+
+    font-size:11px;
+
+    transform:none;
+
+}
+
+.ide-actions button:hover:not(:disabled){
+
+    background:#253554;
+
+    transform:none;
+
+}
+
+.ide-actions button:disabled{
+
+    cursor:not-allowed;
+
+    opacity:.5;
+
+}
+
+#editorFeedback{
+
+    color:#69d7a3;
+
+    font-size:11px;
+
+}
+
+.ide-code-area{
+
+    display:flex;
+
+    min-height:0;
+
+    flex:1;
+
+    overflow:hidden;
+
+    background:#070b1b;
+
+}
+
+#codeLineNumbers{
+
+    width:49px;
+
+    min-width:49px;
+
+    margin:0;
+
+    padding:17px 10px 24px 0;
+
+    overflow:hidden;
+
+    border:0;
+
+    border-radius:0;
+
+    background:#080d1e;
+
+    color:#536783;
+
+    font:13px/24px Consolas, monospace;
+
+    text-align:right;
+
+    user-select:none;
+
+}
+
+#codeViewer{
+
+    min-width:0;
+
+    min-height:0;
+
+    height:100%;
+
+    flex:1;
+
+    margin:0;
+
+    padding:17px 20px 24px;
+
+    overflow:auto;
+
+    border:0;
+
+    border-radius:0;
+
+    background:#070b1b;
+
+    color:#dce7f8;
+
+    font:13px/24px Consolas, monospace;
+
+    white-space:pre;
+
+}
+
+#codeViewer code{
+
+    min-height:0;
+
+    padding:0;
+
+    background:transparent;
+
+    font:inherit;
+
+    line-height:inherit;
+
+    white-space:pre;
+
+}
+
+@media(max-width:800px){
+
+    .ide-shell{
+
+        height:75vh;
+
+        min-height:620px;
+
+        flex-direction:column;
+
+    }
+
+    .ide-file-sidebar{
+
+        min-width:0;
+
+        max-height:44%;
+
+        flex-basis:44%;
+
+        border-right:0;
+
+        border-bottom:1px solid #253149;
+
+    }
+
+    .ide-toolbar{
+
+        align-items:flex-start;
+
+        flex-direction:column;
+
+    }
+
+    .ide-file-metadata{
+
+        width:100%;
+
+    }
+
+    .ide-actions{
+
+        align-self:flex-end;
+
+    }
 
 }
 

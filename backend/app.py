@@ -1,6 +1,12 @@
+import json
+import logging
 import os
+import queue
+import tempfile
+import threading
 import zipfile
-from flask import send_file, jsonify
+from dotenv import load_dotenv
+from flask import Response, stream_with_context
 
 from flask import (
     Flask,
@@ -9,14 +15,34 @@ from flask import (
     jsonify,
     send_file
 )
-from agents.project_generator import generate_project
+
+load_dotenv()
+
+from agents.project_generator import (
+    GENERATED_PROJECTS_DIR,
+    generate_project,
+    migrate_legacy_project,
+)
 from agents.requirement_agent import analyze_requirements
 from agents.architecture_agent import generate_architecture
 from agents.database_agent import generate_database
 from agents.backend_agent import generate_backend
 from agents.frontend_agent import generate_frontend
+from agents.project_manifest import validate_project_manifest
+from agents.project_validator import validate_project
 
 app = Flask(__name__)
+GENERATED_PROJECT_PATH = os.path.join(GENERATED_PROJECTS_DIR, "project")
+LEGACY_GENERATED_PROJECT_PATH = os.path.join(
+    app.root_path,
+    "generated_projects",
+    "project"
+)
+
+migrate_legacy_project(
+    LEGACY_GENERATED_PROJECT_PATH,
+    GENERATED_PROJECT_PATH
+)
 
 
 # ==================================================
@@ -67,9 +93,11 @@ def api_requirements():
                 "message": "Project description cannot be empty."
             }), 400
 
+        app.logger.info("Requirements generation started")
         requirements = analyze_requirements(
             prompt
         )
+        app.logger.info("Requirements generation completed")
 
         return jsonify({
             "success": True,
@@ -360,6 +388,125 @@ def api_frontend():
             "message": str(e)
         }), 500
 
+
+# ==================================================
+# AUTOMATIC PROJECT GENERATION API
+# ==================================================
+
+@app.route("/api/generate", methods=["POST"])
+def api_generate():
+
+    data = request.get_json()
+    prompt = ((data or {}).get("prompt") or "").strip()
+    requirements = ((data or {}).get("requirements") or "").strip()
+    if not prompt and not requirements:
+        return jsonify({
+            "success": False,
+            "message": "Project description or generated requirements are required."
+        }), 400
+
+    events = queue.Queue()
+
+    def run_pipeline():
+        current_stage = "Project generation"
+        active_requirements = requirements
+
+        def emit(message, level=logging.INFO):
+            app.logger.log(level, message)
+            events.put({"type": "log", "message": message})
+
+        def emit_code(event):
+            events.put(event)
+
+        try:
+            if requirements:
+                emit("Using saved requirements.")
+            else:
+                current_stage = "Requirements generation"
+                emit("Requirements generation started...")
+                generated_requirements = analyze_requirements(prompt)
+                emit("Requirements generated successfully.")
+                events.put({
+                    "type": "requirements",
+                    "requirements": generated_requirements
+                })
+                active_requirements = generated_requirements
+
+            current_stage = "Architecture generation"
+            emit("Architecture generation started...")
+            architecture = generate_architecture(active_requirements)
+            emit("Architecture generated successfully.")
+            events.put({"type": "architecture", "architecture": architecture})
+
+            current_stage = "Database schema generation"
+            emit("Database schema generation started...")
+            database = generate_database(active_requirements, architecture)
+            emit("Database schema generated successfully.")
+            events.put({"type": "database", "database": database})
+
+            current_stage = "Project generation"
+            emit("Project generation started...")
+            emit("Generating project structure...")
+            backend = generate_backend(
+                active_requirements,
+                architecture,
+                database
+            )
+            emit("Project structure generated successfully.")
+
+            emit("Preparing frontend implementation plan...")
+            frontend = generate_frontend(
+                active_requirements,
+                architecture,
+                database,
+                backend
+            )
+            emit("Frontend implementation plan generated successfully.")
+
+            project = generate_project(
+                active_requirements,
+                architecture,
+                database,
+                backend,
+                frontend,
+                progress=emit,
+                code_progress=emit_code,
+            )
+            emit("Project generation completed successfully.")
+            events.put({
+                "type": "complete",
+                "success": True,
+                "project": project
+            })
+        except Exception as error:
+            message = f"{current_stage} failed: {error}"
+            emit(message, logging.ERROR)
+            events.put({
+                "type": "failure",
+                "success": False,
+                "message": message
+            })
+        finally:
+            events.put(None)
+
+    threading.Thread(target=run_pipeline, daemon=True).start()
+
+    def stream_events():
+        while True:
+            event = events.get()
+            if event is None:
+                break
+            yield json.dumps(event, ensure_ascii=False) + "\n"
+
+    return Response(
+        stream_with_context(stream_events()),
+        mimetype="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
 # ==================================================
 # PROJECT GENERATION API
 # ==================================================
@@ -435,10 +582,7 @@ def get_project_files():
 
     try:
 
-        project_path = os.path.join(
-            "generated_projects",
-            "project"
-        )
+        project_path = GENERATED_PROJECT_PATH
 
         files = []
 
@@ -469,7 +613,7 @@ def get_project_files():
                 relative_path = os.path.relpath(
                     full_path,
                     project_path
-                )
+                ).replace("\\", "/")
 
                 files.append(
                     relative_path
@@ -518,15 +662,19 @@ def get_project_file():
 
             }), 400
 
-        project_root = os.path.join(
-            "generated_projects",
-            "project"
-        )
-
-        full_path = os.path.join(
-            project_root,
-            file_path
-        )
+        project_root = GENERATED_PROJECT_PATH
+        full_path = os.path.abspath(os.path.join(project_root, file_path))
+        try:
+            is_project_file = (
+                os.path.commonpath((project_root, full_path)) == project_root
+            )
+        except ValueError:
+            is_project_file = False
+        if not is_project_file:
+            return jsonify({
+                "success": False,
+                "message": "Invalid file path."
+            }), 400
 
         if not os.path.exists(
             full_path
@@ -576,10 +724,7 @@ def api_project_files():
 
     try:
 
-        project_path = os.path.join(
-            "generated_projects",
-            "project"
-        )
+        project_path = GENERATED_PROJECT_PATH
 
         files_data = []
 
@@ -595,21 +740,16 @@ def api_project_files():
                 relative_path = os.path.relpath(
                     file_path,
                     project_path
-                )
+                ).replace("\\", "/")
 
-                try:
+                with open(
+                    file_path,
+                    "r",
+                    encoding="utf-8",
+                    errors="replace"
+                ) as f:
 
-                    with open(
-                        file_path,
-                        "r",
-                        encoding="utf-8"
-                    ) as f:
-
-                        content = f.read()
-
-                except Exception:
-
-                    content = "Unable to read file."
+                    content = f.read()
 
                 files_data.append({
 
@@ -648,39 +788,91 @@ def api_project_files():
 # ============================================================
 
 def create_project_zip(project_path):
+    os.makedirs(GENERATED_PROJECTS_DIR, exist_ok=True)
+    zip_path = os.path.join(GENERATED_PROJECTS_DIR, "project.zip")
+    try:
+        with open(
+            os.path.join(project_path, "project_manifest.json"),
+            encoding="utf-8",
+        ) as manifest_file:
+            manifest = json.load(manifest_file)
+        validate_project_manifest(manifest)
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(
+            "Cannot package project: a valid project_manifest.json is required."
+        ) from error
 
-    zip_path = os.path.join(
-        "generated_projects",
-        "project.zip"
+    project_files = {}
+    required_files = manifest.get("required_files")
+    if not isinstance(required_files, list):
+        raise ValueError(
+            "Cannot package project: manifest required_files must be a list."
+        )
+    for relative_path in required_files:
+        if (
+            not isinstance(relative_path, str)
+            or os.path.isabs(relative_path)
+            or ".." in relative_path.replace("\\", "/").split("/")
+        ):
+            raise ValueError(
+                "Cannot package project: manifest contains an unsafe file path."
+            )
+        file_path = os.path.join(project_path, *relative_path.replace("\\", "/").split("/"))
+        try:
+            with open(file_path, encoding="utf-8") as file:
+                project_files[relative_path.replace("\\", "/")] = file.read()
+        except OSError as error:
+            raise ValueError(
+                f"Cannot package project: required file '{relative_path}' is unavailable."
+            ) from error
+
+    ignored_patterns = ("__pycache__", ".pytest_cache", ".git", ".DS_Store", "venv")
+    for root, _dirs, filenames in os.walk(project_path):
+        for name in filenames:
+            full_path = os.path.join(root, name)
+            rel_path = os.path.relpath(full_path, project_path).replace("\\", "/")
+            if any(part in ignored_patterns for part in rel_path.split("/")):
+                continue
+            if name.endswith((".pyc", ".pyo", ".pyd")):
+                continue
+            if rel_path.startswith(".") and rel_path not in {".env.example"}:
+                continue
+            if rel_path not in project_files:
+                try:
+                    with open(full_path, encoding="utf-8") as file:
+                        project_files[rel_path] = file.read()
+                except (OSError, UnicodeDecodeError):
+                    pass
+
+    validation_errors = validate_project(project_files, manifest)
+    if validation_errors:
+        raise ValueError(
+            "Cannot package an unvalidated project: "
+            + "; ".join(validation_errors)
+        )
+
+    descriptor, temporary_zip = tempfile.mkstemp(
+        prefix=".project-",
+        suffix=".zip",
+        dir=GENERATED_PROJECTS_DIR,
     )
-
-    if os.path.exists(zip_path):
-        os.remove(zip_path)
-
-    with zipfile.ZipFile(
-        zip_path,
-        "w",
-        zipfile.ZIP_DEFLATED
-    ) as zipf:
-
-        for root, dirs, files in os.walk(project_path):
-
-            for file in files:
-
+    os.close(descriptor)
+    try:
+        with zipfile.ZipFile(
+            temporary_zip,
+            "w",
+            zipfile.ZIP_DEFLATED
+        ) as zipf:
+            for relative_path in sorted(project_files):
                 file_path = os.path.join(
-                    root,
-                    file
+                    project_path,
+                    *relative_path.split("/"),
                 )
-
-                arcname = os.path.relpath(
-                    file_path,
-                    project_path
-                )
-
-                zipf.write(
-                    file_path,
-                    arcname
-                )
+                zipf.write(file_path, relative_path)
+        os.replace(temporary_zip, zip_path)
+    finally:
+        if os.path.exists(temporary_zip):
+            os.remove(temporary_zip)
 
     return zip_path
 
@@ -697,10 +889,7 @@ def download_project():
 
     try:
 
-        project_path = os.path.join(
-            "generated_projects",
-            "project"
-        )
+        project_path = GENERATED_PROJECT_PATH
 
         if not os.path.exists(project_path):
 
@@ -742,10 +931,13 @@ def download_project():
 # MAIN
 # ==================================================
 
-if __name__ == "__main__":
-
+def run_local_server():
     app.run(
-        host="0.0.0.0",
-        port=5000,
-        debug=True
+        host=os.environ.get("HOST", "127.0.0.1"),
+        port=int(os.environ.get("PORT", "5000")),
+        debug=False
     )
+
+
+if __name__ == "__main__":
+    run_local_server()

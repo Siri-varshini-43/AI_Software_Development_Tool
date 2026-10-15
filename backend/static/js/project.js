@@ -2,6 +2,10 @@
 // PROJECT GENERATION
 // ============================================================
 
+let generatedProjectFiles = [];
+let activeProjectPath = "";
+let activeProjectFilter = "all";
+
 const projectBtn =
     document.getElementById("projectBtn");
 
@@ -45,6 +49,16 @@ if (projectBtn) {
                 "<h3>⏳ Generating Complete Project...</h3>";
 
             projectBtn.disabled = true;
+            await loadProjectFiles([]);
+            if (!generatedProjectFiles.length) {
+                document.getElementById("projectTree").textContent =
+                    "Project is being generated...";
+                showEmptyEditor("Project generation is in progress.");
+            }
+            const downloadButton = document.getElementById("downloadBtn");
+            if (downloadButton) {
+                downloadButton.disabled = true;
+            }
 
             try {
 
@@ -94,14 +108,9 @@ if (projectBtn) {
                     !data.success
                 ) {
 
-                    projectOutput.innerHTML = `
-                        <span style="color:red;">
-                            ${
-                                data.message ||
-                                "Project Generation Failed"
-                            }
-                        </span>
-                    `;
+                    projectOutput.textContent =
+                        data.message || "Project generation failed.";
+                    showEmptyEditor("Generation failed; no project files are available.");
 
                     return;
                 }
@@ -129,8 +138,7 @@ if (projectBtn) {
 
                 `;
 
-                // Load generated files
-                loadProjectFiles();
+                await loadProjectFiles(data.files);
 
                 // Enable download button
                 const downloadBtn =
@@ -151,12 +159,9 @@ if (projectBtn) {
                     error
                 );
 
-                projectOutput.innerHTML = `
-                    <span style="color:red;">
-                        Project Generation Failed.
-                        Check Flask Terminal.
-                    </span>
-                `;
+                projectOutput.textContent =
+                    `Project generation failed: ${error.message}`;
+                showEmptyEditor("Generation failed; no project files are available.");
 
             }
 
@@ -176,201 +181,305 @@ if (projectBtn) {
 // LOAD PROJECT FILES
 // ============================================================
 
-async function loadProjectFiles() {
-
+async function loadProjectFiles(projectFiles = null) {
     try {
-
-        const response =
-            await fetch("/api/project-files");
-
-        const data =
-            await response.json();
-
-        if (!data.success) {
-            return;
+        let files = projectFiles;
+        if (!Array.isArray(files)) {
+            const response = await fetch("/api/project-files");
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || "Unable to load generated files.");
+            }
+            files = data.files;
         }
 
-        const projectTree =
-            document.getElementById(
-                "projectTree"
+        generatedProjectFiles = files
+            .map(file => {
+                const path = String(file.path || "")
+                    .replace(/\\/g, "/")
+                    .replace(/^\/+/, "");
+                return {
+                    ...file,
+                    path,
+                    name: path.split("/").pop() || file.name || ""
+                };
+            })
+            .filter(file => file.path);
+
+        document.getElementById("fileCountBadge").textContent =
+            String(generatedProjectFiles.length);
+        renderProjectTree();
+        if (!generatedProjectFiles.length) {
+            showEmptyEditor("No generated files found.");
+        } else if (!generatedProjectFiles.some(file => file.path === activeProjectPath)) {
+            displayProjectFile(generatedProjectFiles[0]);
+        } else {
+            displayProjectFile(
+                generatedProjectFiles.find(file => file.path === activeProjectPath)
             );
+        }
+    }
+    catch (error) {
+        console.error("Load Files Error:", error);
+        document.getElementById("projectTree").textContent =
+            `Unable to load generated files: ${error.message}`;
+    }
+}
 
-        projectTree.innerHTML = "";
+function categoryForFile(file) {
+    const path = (file.path || "").toLowerCase();
+    const name = (file.name || "").toLowerCase();
+    if (
+        path.startsWith("frontend/") ||
+        path.includes("/frontend/") ||
+        name.endsWith(".html") ||
+        name.endsWith(".htm") ||
+        name.endsWith(".css") ||
+        (name.endsWith(".js") && !path.startsWith("backend/"))
+    ) {
+        return "frontend";
+    }
+    if (path.startsWith("backend/") || path.includes("/backend/") || name.endsWith(".py")) {
+        return "backend";
+    }
+    if (
+        path.startsWith("database/") ||
+        path.includes("/database/") ||
+        name.endsWith(".sql")
+    ) {
+        return "database";
+    }
+    if (
+        name.startsWith(".env") ||
+        name.includes("config") ||
+        name === "requirements.txt" ||
+        name === "package.json" ||
+        name.startsWith("tsconfig") ||
+        name.endsWith(".yaml") ||
+        name.endsWith(".yml")
+    ) {
+        return "config";
+    }
+    return "all";
+}
 
-        const folders = {};
+function renderProjectTree() {
+    const projectTree = document.getElementById("projectTree");
+    const search = document.getElementById("fileSearch").value.trim().toLowerCase();
+    const files = generatedProjectFiles.filter(file => {
+        const matchesCategory = activeProjectFilter === "all" ||
+            categoryForFile(file) === activeProjectFilter;
+        const matchesSearch = !search || file.path.toLowerCase().includes(search);
+        return matchesCategory && matchesSearch;
+    });
+    projectTree.replaceChildren();
 
-        data.files.forEach(file => {
+    if (!files.length) {
+        projectTree.textContent = "No matching files.";
+        return;
+    }
 
-            const parts =
-                file.path.split("\\");
-
-            const folder =
-                parts[0];
-
-            const fileName =
-                parts[1];
-
-            if (!folders[folder]) {
-                folders[folder] = [];
+    const root = { directories: new Map(), files: [] };
+    files.forEach(file => {
+        const parts = file.path.split("/").filter(Boolean);
+        let current = root;
+        parts.slice(0, -1).forEach(folder => {
+            if (!current.directories.has(folder)) {
+                current.directories.set(folder, { directories: new Map(), files: [] });
             }
-
-            folders[folder].push(
-                file.path
-            );
-
+            current = current.directories.get(folder);
         });
+        current.files.push(file);
+    });
 
-        Object.keys(folders).forEach(folder => {
+    const renderNode = (node, container) => {
+        const list = document.createElement("ul");
+        list.className = "project-tree-list";
+        [...node.directories.entries()]
+            .sort(([left], [right]) => left.localeCompare(right))
+            .forEach(([name, child]) => {
+                const item = document.createElement("li");
+                item.className = "project-tree-folder";
+                const toggle = document.createElement("button");
+                toggle.type = "button";
+                toggle.className = "tree-entry tree-folder";
+                toggle.textContent = `▾  📁  ${name}`;
+                toggle.setAttribute("aria-expanded", "true");
 
-            const folderDiv =
-                document.createElement("div");
-
-            folderDiv.className =
-                "folder-item";
-
-            folderDiv.innerHTML =
-                `📁 ${folder}`;
-
-            const fileContainer =
-                document.createElement("div");
-
-            fileContainer.className =
-                "file-list";
-
-            folders[folder].forEach(filePath => {
-
-                const fileName =
-                    filePath.split("\\")[1];
-
-                const fileDiv =
-                    document.createElement("div");
-
-                fileDiv.className =
-                    "file-item";
-
-                fileDiv.innerHTML =
-                    `📄 ${fileName}`;
-
-                fileDiv.onclick = () =>
-                    loadFileContent(
-                        filePath
-                    );
-
-                fileContainer.appendChild(
-                    fileDiv
-                );
-
+                const nested = document.createElement("div");
+                nested.className = "project-tree-children";
+                renderNode(child, nested);
+                toggle.addEventListener("click", () => {
+                    const expanded = toggle.getAttribute("aria-expanded") === "true";
+                    toggle.setAttribute("aria-expanded", String(!expanded));
+                    nested.hidden = expanded;
+                    toggle.textContent = `${expanded ? "▸" : "▾"}  📁  ${name}`;
+                });
+                item.append(toggle, nested);
+                list.appendChild(item);
             });
 
-            folderDiv.onclick = () => {
+        node.files
+            .sort((left, right) => left.name.localeCompare(right.name))
+            .forEach(file => {
+                const item = document.createElement("li");
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "tree-entry tree-file";
+                button.textContent = `📄  ${file.name}`;
+                button.title = file.path;
+                button.dataset.path = file.path;
+                if (file.path === activeProjectPath) {
+                    button.classList.add("selected");
+                    button.setAttribute("aria-current", "true");
+                }
+                button.addEventListener("click", () => displayProjectFile(file));
+                item.appendChild(button);
+                list.appendChild(item);
+            });
+        container.appendChild(list);
+    };
 
-                fileContainer.classList.toggle(
-                    "show"
-                );
-
-            };
-
-            projectTree.appendChild(
-                folderDiv
-            );
-
-            projectTree.appendChild(
-                fileContainer
-            );
-
-        });
-
-    }
-
-    catch (error) {
-
-        console.error(
-            "Load Files Error:",
-            error
-        );
-
-    }
-
+    renderNode(root, projectTree);
 }
 
-// ============================================================
-// LOAD FILE CONTENT
-// ============================================================
+function displayProjectFile(file) {
+    if (!file) {
+        return;
+    }
+    activeProjectPath = file.path;
+    const extension = file.name.split(".").pop().toLowerCase();
+    const languageByExtension = {
+        py: ["Python", "python"],
+        js: ["JavaScript", "javascript"],
+        jsx: ["JSX", "javascript"],
+        ts: ["TypeScript", "typescript"],
+        tsx: ["TSX", "typescript"],
+        html: ["HTML", "xml"],
+        htm: ["HTML", "xml"],
+        css: ["CSS", "css"],
+        json: ["JSON", "json"],
+        sql: ["SQL", "sql"],
+        md: ["Markdown", "markdown"],
+        yml: ["YAML", "yaml"],
+        yaml: ["YAML", "yaml"]
+    };
+    const [languageName, highlightLanguage] =
+        languageByExtension[extension] || ["Text", "plaintext"];
+    const codeBlock = document.querySelector("#codeViewer code");
+    let content = file.content;
+    if (content === undefined || content === null) {
+        fetch(`/api/project/file?path=${encodeURIComponent(file.path)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.success && typeof data.content === "string") {
+                    file.content = data.content;
+                    if (activeProjectPath === file.path) {
+                        displayProjectFile(file);
+                    }
+                }
+            })
+            .catch(() => {});
+        content = "Loading file content...";
+    }
+    const lines = content.split("\n");
+    const lineCount = content ? lines.length - (content.endsWith("\n") ? 1 : 0) : 0;
 
-async function loadFileContent(
-    filePath
-) {
+    document.getElementById("codeFileName").textContent = file.path;
+    document.getElementById("editorTabName").textContent = file.name;
+    document.getElementById("languageBadge").textContent = languageName.toUpperCase();
+    document.getElementById("lineCount").textContent =
+        `${lineCount} ${lineCount === 1 ? "line" : "lines"}`;
+    document.getElementById("editorFeedback").textContent = "";
+    codeBlock.className = `language-${highlightLanguage}`;
+    codeBlock.textContent = content;
+    document.getElementById("codeLineNumbers").textContent =
+        Array.from({ length: Math.max(lineCount, 1) }, (_, index) => index + 1).join("\n");
+    document.getElementById("copyCodeButton").disabled = false;
+    document.getElementById("downloadCodeButton").disabled = false;
 
-    try {
-
-        const response =
-            await fetch(
-                `/api/project/file?path=${encodeURIComponent(filePath)}`
-            );
-
-        const data =
-            await response.json();
-
-        if (!data.success) {
-            return;
+    document.querySelectorAll(".tree-file").forEach(button => {
+        const selected = button.dataset.path === activeProjectPath;
+        button.classList.toggle("selected", selected);
+        if (selected) {
+            button.setAttribute("aria-current", "true");
+        } else {
+            button.removeAttribute("aria-current");
         }
-
-        const codeViewer =
-            document.getElementById(
-                "codeViewer"
-            );
-
-        const extension =
-    filePath.split(".").pop();
-
-let language = "plaintext";
-
-if (extension === "py") {
-    language = "python";
-}
-else if (extension === "js") {
-    language = "javascript";
-}
-else if (extension === "html") {
-    language = "xml";
-}
-else if (extension === "css") {
-    language = "css";
-}
-
-codeViewer.innerHTML = `
-<pre>
-<code class="language-${language}">
-${escapeHtml(data.content)}
-</code>
-</pre>
-`;
-
-const codeBlock =
-    codeViewer.querySelector(
-        "code"
-    );
-
-if (codeBlock) {
-
-    hljs.highlightElement(
-        codeBlock
-    );
-
-}
-
+    });
+    if (window.hljs) {
+        window.hljs.highlightElement(codeBlock);
     }
-
-    catch (error) {
-
-        console.error(
-            "File Content Error:",
-            error
-        );
-
-    }
-
+    document.getElementById("codeViewer").scrollTop = 0;
+    document.getElementById("codeLineNumbers").scrollTop = 0;
 }
+
+function showEmptyEditor(message) {
+    activeProjectPath = "";
+    document.getElementById("codeFileName").textContent = "No file selected";
+    document.getElementById("editorTabName").textContent = "No file selected";
+    document.getElementById("languageBadge").textContent = "TEXT";
+    document.getElementById("lineCount").textContent = "0 lines";
+    document.querySelector("#codeViewer code").textContent = message;
+    document.getElementById("codeLineNumbers").textContent = "1";
+    document.getElementById("copyCodeButton").disabled = true;
+    document.getElementById("downloadCodeButton").disabled = true;
+}
+
+document.getElementById("fileSearch").addEventListener("input", renderProjectTree);
+document.getElementById("fileFilters").addEventListener("click", event => {
+    const button = event.target.closest("[data-file-filter]");
+    if (!button) {
+        return;
+    }
+    activeProjectFilter = button.dataset.fileFilter;
+    document.querySelectorAll("[data-file-filter]").forEach(filterButton => {
+        filterButton.classList.toggle("active", filterButton === button);
+    });
+    renderProjectTree();
+});
+
+document.getElementById("copyCodeButton").addEventListener("click", async () => {
+    const content = document.querySelector("#codeViewer code").textContent;
+    try {
+        await navigator.clipboard.writeText(content);
+        document.getElementById("editorFeedback").textContent = "Copied";
+    } catch (error) {
+        console.error("Unable to copy generated code:", error);
+        document.getElementById("editorFeedback").textContent = "Copy failed";
+    }
+});
+
+document.getElementById("downloadCodeButton").addEventListener("click", () => {
+    const file = generatedProjectFiles.find(item => item.path === activeProjectPath);
+    if (!file) {
+        return;
+    }
+    const url = URL.createObjectURL(new Blob([file.content || ""], { type: "text/plain" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = file.name;
+    link.click();
+    URL.revokeObjectURL(url);
+});
+
+document.getElementById("fullscreenEditorButton").addEventListener("click", async () => {
+    const workspace = document.querySelector(".ide-workspace");
+    try {
+        if (document.fullscreenElement === workspace) {
+            await document.exitFullscreen();
+        } else {
+            await workspace.requestFullscreen();
+        }
+    } catch (error) {
+        console.error("Unable to toggle editor fullscreen:", error);
+        document.getElementById("editorFeedback").textContent = "Fullscreen unavailable";
+    }
+});
+
+document.getElementById("codeViewer").addEventListener("scroll", event => {
+    document.getElementById("codeLineNumbers").scrollTop = event.currentTarget.scrollTop;
+});
 
 
 // ============================================================
