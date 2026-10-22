@@ -2,10 +2,21 @@ import json
 import unittest
 from unittest.mock import patch
 
-from services.ollama_service import generate_response
+from services.ollama_service import (
+    check_generation_time_limit,
+    GenerationDeadlineExceeded,
+    generate_response,
+    generation_time_limit,
+)
 
 
 class OllamaServiceTests(unittest.TestCase):
+    def test_generation_deadline_applies_to_all_model_calls_in_scope(self):
+        with generation_time_limit(-1):
+            with self.assertRaisesRegex(GenerationDeadlineExceeded, "15-minute"):
+                check_generation_time_limit()
+        check_generation_time_limit()
+
     def test_generate_response_emits_each_streamed_chunk(self):
         chunks = ["print(", "'ready')"]
 

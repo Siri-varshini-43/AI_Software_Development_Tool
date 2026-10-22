@@ -10,15 +10,22 @@ import tempfile
 from pathlib import PurePosixPath
 
 from agents.project_validator import (
+    REQUIRED_FILES,
+    PLACEHOLDER_PATTERN,
     validate_project,
     _parse_sql_tables,
     _sql_identifiers,
 )
 from agents.project_manifest import create_project_manifest
-from services.ollama_service import generate_response
+from services.ollama_service import (
+    check_generation_time_limit,
+    GenerationDeadlineExceeded,
+    generate_response,
+    generation_time_limit,
+)
 
 
-MAX_REPAIR_ATTEMPTS = 1
+MAX_REPAIR_ATTEMPTS = 2
 MAX_FORMAT_RETRIES = 1
 FRONTEND_MAX_PREDICT = 1792
 MAX_FRONTEND_CONTEXT_CHARS = 2000
@@ -240,6 +247,10 @@ def _validate_generated_group(files):
     for filename, content in files.items():
         if not content.strip():
             errors.append(f"{filename}: generated file is empty")
+        elif PLACEHOLDER_PATTERN.search(content):
+            errors.append(
+                f"{filename}: placeholder or incomplete implementation detected"
+            )
         elif filename.endswith(".py"):
             try:
                 ast.parse(content, filename=filename)
@@ -599,8 +610,19 @@ def _repair_targets(files, errors):
     )
     for error in errors:
         prefix, separator, _detail = error.partition(":")
-        if separator and prefix in files and prefix not in targets:
-            targets.append(prefix)
+        clean_prefix = prefix.strip()
+        if (
+            separator
+            and (clean_prefix in files or clean_prefix in REQUIRED_FILES)
+            and clean_prefix not in targets
+            and clean_prefix != "tests/test_smoke.py"
+        ):
+            targets.append(clean_prefix)
+        match = re.search(r"expected generated file '([^']+)'", error)
+        if match:
+            expected_fn = match.group(1).replace("\\", "/")
+            if expected_fn not in targets:
+                targets.append(expected_fn)
         if (
             prefix.startswith("backend/")
             and "backend.db" in error
@@ -1540,6 +1562,7 @@ def _generate_frontend_files(
     manifest=None,
     code_progress=None,
     files_saved=None,
+    batch_generation=False,
 ):
     manifest = manifest or create_project_manifest(
         requirements,
@@ -1598,6 +1621,41 @@ def _generate_frontend_files(
                     if tpl_path not in manifest.setdefault("required_files", []):
                         manifest["required_files"].append(tpl_path)
 
+    # The live pipeline can generate all frontend files in one model request.
+    # Keep the isolated one-file path as the default for targeted retries and
+    # callers that depend on independent file generation.
+    if batch_generation:
+        missing_files = [filename for filename in target_files if filename not in context]
+        if missing_files:
+            _emit_progress(progress, "Generating frontend files in one batch...")
+            try:
+                generated = _generate_file_group(
+                    project_prompt,
+                    manifest,
+                    missing_files,
+                    context,
+                    progress=progress,
+                    num_predict=min(
+                        6144,
+                        max(FRONTEND_MAX_PREDICT, 640 * len(missing_files)),
+                    ),
+                    code_progress=code_progress,
+                )
+                for gname, gcontent in generated.items():
+                    if gcontent.strip() and gname.startswith("frontend/") and not gname.endswith(".py"):
+                        frontend_files[gname] = gcontent
+                        context[gname] = gcontent
+                if files_saved:
+                    files_saved(generated)
+            except Exception as error:
+                check_generation_time_limit()
+                _emit_progress(
+                    progress,
+                    "Frontend batch generation failed; retrying missing files individually: "
+                    + str(error),
+                    logging.WARNING,
+                )
+
     for filename in target_files:
         if filename in context:
             frontend_files[filename] = context[filename]
@@ -1635,6 +1693,7 @@ def _generate_frontend_files(
             if files_saved:
                 files_saved(generated)
         except Exception as error:
+            check_generation_time_limit()
             if filename in ("frontend/index.html", "frontend/css/style.css", "frontend/js/script.js"):
                 raise
             _emit_progress(
@@ -2025,7 +2084,7 @@ def _sync_manifest_files(files, manifest):
             manifest_files.append(fname)
         if fname.startswith("frontend/") and fname not in frontend_files:
             frontend_files.append(fname)
-        if fname.startswith("backend/") and fname not in backend_files:
+        if fname.startswith("backend/") and fname != "backend/__init__.py" and fname not in backend_files:
             backend_files.append(fname)
 
     manifest["required_files"] = sorted(set(manifest_files))
@@ -2343,7 +2402,7 @@ def _load_existing_project_files(project_path):
     return existing_files
 
 
-def generate_project(
+def _generate_project(
     requirements,
     architecture,
     database,
@@ -2351,6 +2410,7 @@ def generate_project(
     frontend,
     progress=None,
     code_progress=None,
+    project_path=None,
 ):
     database = database if isinstance(database, dict) else {}
     manifest = create_project_manifest(
@@ -2368,7 +2428,7 @@ def generate_project(
         frontend,
         manifest,
     )
-    project_path = os.path.join(GENERATED_PROJECTS_DIR, "project")
+    project_path = project_path or os.path.join(GENERATED_PROJECTS_DIR, "project")
     existing_files = _load_existing_project_files(project_path)
     files = dict(existing_files)
 
@@ -2560,6 +2620,7 @@ def generate_project(
             manifest,
             publish_code_event,
             save_progress_files,
+            batch_generation=bool(frontend),
         )
         save_progress_files(frontend_files)
         _emit_progress(progress, "Frontend generation completed.")
@@ -2613,6 +2674,7 @@ def generate_project(
     save_progress_files()
 
     for attempt in range(MAX_REPAIR_ATTEMPTS + 1):
+        check_generation_time_limit()
         _ensure_runtime_dependencies(files, manifest)
         _repair_backend_db_imports(files)
         _ensure_sqlalchemy_text_import(files)
@@ -2693,13 +2755,67 @@ def generate_project(
                 break
             errors = smoke_errors
 
+        if attempt < MAX_REPAIR_ATTEMPTS and errors:
+            targets = _repair_targets(files, errors)
+            targets = [t for t in targets if t and t != "project_manifest.json" and t != "tests/test_smoke.py"]
+            if targets:
+                _emit_progress(
+                    progress,
+                    "Retrying generation only for these missing or invalid files: "
+                    + ", ".join(targets),
+                    logging.WARNING,
+                )
+                repair_prompt = _repair_prompt(
+                    prompt,
+                    files,
+                    errors,
+                    targets,
+                    manifest,
+                )
+                related_paths = set()
+                if any(error.startswith("database/schema.sql:") for error in errors):
+                    related_paths.add("backend/models.py")
+                if any("blueprint '" in error for error in errors):
+                    related_paths.update(("backend/routes.py", "backend/app.py"))
+                if any("backend.db" in error for error in errors):
+                    related_paths.update(("backend/models.py", "backend/app.py"))
+                if any("unresolved global name 'app'" in error for error in errors):
+                    related_paths.update(("backend/models.py", "backend/app.py"))
+                interface_context = {
+                    k: files[k] for k in sorted(related_paths - set(targets))
+                    if k in files
+                }
+                try:
+                    regenerated = _generate_file_group(
+                        repair_prompt,
+                        manifest,
+                        targets,
+                        interface_context,
+                        progress=progress,
+                        num_predict=2048,
+                        code_progress=publish_code_event,
+                    )
+                    files.update(regenerated)
+                    _sync_manifest_files(files, manifest)
+                    save_progress_files()
+                except Exception as gen_err:
+                    check_generation_time_limit()
+                    _emit_progress(
+                        progress,
+                        f"Regeneration attempt failed: {gen_err}",
+                        logging.WARNING,
+                    )
+
         if attempt == MAX_REPAIR_ATTEMPTS:
             validate_and_repair_project_inplace(files, manifest, progress)
             save_progress_files()
             errors = validate_project(files, manifest)
             if not errors:
-                _emit_progress(progress, "Project validation completed after in-place repair.")
-                break
+                smoke_errors = run_smoke_tests(files, manifest)
+                if not smoke_errors:
+                    _emit_progress(progress, "Project validation completed after in-place repair.")
+                    break
+                errors = smoke_errors
             raise ValueError(
                 "Generated project failed validation after automatic repair: "
                 + "; ".join(errors)
@@ -2709,6 +2825,30 @@ def generate_project(
     _emit_progress(progress, "Writing validated project files...")
     _write_project_files(files, project_path, preserve_existing=True)
 
+    # Post-write verification on disk
+    disk_errors = []
+    for req_file in sorted(REQUIRED_FILES):
+        disk_file = os.path.join(project_path, *req_file.split("/"))
+        if not os.path.isfile(disk_file):
+            disk_errors.append(f"missing required file on disk: {req_file}")
+            continue
+        try:
+            with open(disk_file, "r", encoding="utf-8") as f:
+                disk_content = f.read()
+            if not disk_content.strip() and req_file != "backend/__init__.py":
+                disk_errors.append(f"file on disk is empty: {req_file}")
+            elif PLACEHOLDER_PATTERN.search(disk_content):
+                disk_errors.append(f"file on disk contains incomplete code: {req_file}")
+        except Exception as read_err:
+            disk_errors.append(f"failed reading file on disk {req_file}: {read_err}")
+    if disk_errors:
+        raise ValueError("Project verification failed on disk: " + "; ".join(disk_errors))
+
+    final_validation_errors = validate_project(files, manifest, project_path=project_path)
+    if final_validation_errors:
+        raise ValueError("Final project validation failed: " + "; ".join(final_validation_errors))
+
+    _emit_progress(progress, "All required files verified on disk with complete and correct code.")
     _emit_progress(progress, "Project generation completed.")
 
     all_files = [
@@ -2726,3 +2866,85 @@ def generate_project(
         "frontend_generated": any(name.startswith("frontend/") for name in files),
         "files": all_files
     }
+
+
+PROJECT_CODE_GENERATION_TIMEOUT_SECONDS = 15 * 60
+
+
+def generate_project(
+    requirements,
+    architecture,
+    database,
+    backend,
+    frontend,
+    progress=None,
+    code_progress=None,
+    project_path=None,
+):
+    project_path = project_path or os.path.join(GENERATED_PROJECTS_DIR, "project")
+    try:
+        with generation_time_limit(PROJECT_CODE_GENERATION_TIMEOUT_SECONDS):
+            result = _generate_project(
+                requirements,
+                architecture,
+                database,
+                backend,
+                frontend,
+                progress=progress,
+                code_progress=code_progress,
+                project_path=project_path,
+            )
+            check_generation_time_limit()
+            return result
+    except GenerationDeadlineExceeded:
+        os.makedirs(project_path, exist_ok=True)
+        manifest_path = os.path.join(project_path, "project_manifest.json")
+        try:
+            with open(manifest_path, encoding="utf-8") as manifest_file:
+                manifest = json.load(manifest_file)
+        except (OSError, json.JSONDecodeError):
+            manifest = None
+        if not isinstance(manifest, dict):
+            manifest = create_project_manifest(
+                requirements,
+                architecture,
+                database,
+                backend,
+                frontend,
+            )
+
+        message = (
+            "Project code generation stopped at the 15-minute limit. "
+            "The generated files were saved successfully; review and align "
+            "the files before deploying."
+        )
+        manifest["generation_status"] = "partial"
+        manifest["generation_message"] = message
+        with open(manifest_path, "w", encoding="utf-8", newline="\n") as manifest_file:
+            json.dump(manifest, manifest_file, ensure_ascii=False, indent=2)
+            manifest_file.write("\n")
+
+        files = _load_existing_project_files(project_path)
+        files["project_manifest.json"] = json.dumps(
+            manifest,
+            ensure_ascii=False,
+            indent=2,
+        ) + "\n"
+        if progress:
+            _emit_progress(progress, message, logging.WARNING)
+        return {
+            "success": True,
+            "partial": True,
+            "message": message,
+            "project_path": project_path,
+            "backend_generated": any(name.startswith("backend/") for name in files),
+            "frontend_generated": any(name.startswith("frontend/") for name in files),
+            "files": [
+                {
+                    "name": filename.rsplit("/", 1)[-1],
+                    "path": filename,
+                    "content": content,
+                }
+                for filename, content in sorted(files.items())
+            ],
+        }

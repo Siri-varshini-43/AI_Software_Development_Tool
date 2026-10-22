@@ -21,10 +21,30 @@
 
 
     <!-- ====================================== -->
-    <!-- MAIN TITLE -->
+    <!-- MAIN NAVIGATION -->
     <!-- ====================================== -->
 
-    <h1>AI Software Engineering Platform</h1>
+    <nav class="app-navbar" aria-label="Main navigation">
+        <h1>AI Software Engineering Platform</h1>
+        <button type="button" id="historyToggleBtn" class="history-toggle-btn"
+                aria-expanded="false" aria-controls="projectHistorySection">
+            Project history
+        </button>
+        <section class="section project-history-section" id="projectHistorySection"
+                 aria-label="Project history" hidden>
+            <div class="history-heading">
+                <div>
+                    <h2>Project History</h2>
+                    <p class="history-subtitle">Select a project to restore its requirements, design, generated files, and deployment links.</p>
+                </div>
+                <button type="button" id="refreshHistoryBtn" class="history-refresh-btn">Refresh</button>
+            </div>
+            <div id="projectHistoryList" class="project-history-list" aria-live="polite">
+                Loading project history...
+            </div>
+        </section>
+    </nav>
+
 
 
     <!-- ====================================== -->
@@ -120,90 +140,6 @@
 
         </div>
 
-
-        <hr>
-
-
-        <!-- Project Flow -->
-
-        <h3>🔄 Project Flow</h3>
-
-        <div id="projectFlow">
-
-            Waiting for Project Flow...
-
-        </div>
-
-
-        <hr>
-
-
-        <!-- Actors -->
-
-        <h3>👥 Actors</h3>
-
-        <div id="actors">
-
-            Waiting for Actors...
-
-        </div>
-
-
-        <hr>
-
-
-        <!-- Modules -->
-
-        <h3>📦 Modules</h3>
-
-        <div id="modules">
-
-            Waiting for Modules...
-
-        </div>
-
-
-        <hr>
-
-
-        <!-- REST APIs -->
-
-        <h3>🌐 REST APIs</h3>
-
-        <div id="restApis">
-
-            Waiting for REST APIs...
-
-        </div>
-
-
-        <hr>
-
-
-        <!-- Technology Stack -->
-
-        <h3>💻 Technology Stack</h3>
-
-        <div id="technologyStack">
-
-            Waiting for Technology Stack...
-
-        </div>
-
-
-        <hr>
-
-
-        <!-- Folder Structure -->
-
-        <h3>📁 Folder Structure</h3>
-
-        <div id="folderStructure">
-
-            Waiting for Folder Structure...
-
-        </div>
-
     </div>
 
     <hr>
@@ -245,16 +181,6 @@
 
     </div>
 
-    <hr>
-
-    <h3>📝 PostgreSQL SQL Schema</h3>
-
-    <pre id="databaseSQL">
-
-Waiting for SQL Schema...
-
-    </pre>
-
 </div>
 
 <hr>
@@ -278,6 +204,7 @@ Waiting for SQL Schema...
     <h2>Generated Project</h2>
 
     <div class="output" id="projectOutput"></div>
+    <div id="projectHistoryDetails" class="history-details" hidden></div>
 
 </div>
 
@@ -362,8 +289,29 @@ Waiting for SQL Schema...
         <div
             class="output"
             id="documentationOutput">
-
-            Project documentation will appear after generation.
+            <h3>Cloud deployment setup</h3>
+            <p>To deploy your generated project, create the following credentials and enter them in the Deploy Now dialog. Keep these values private and never commit them to source control.</p>
+            <ol>
+                <li>
+                    <strong>Neon database</strong>
+                    <p>Create a Neon account or open your existing project, then go to
+                        <a href="https://console.neon.tech/app/settings/api-keys" target="_blank" rel="noopener noreferrer">Neon Console &rarr; Settings &rarr; API Keys</a>
+                        and create an API key. You can also provide a Neon connection string from your project dashboard.</p>
+                </li>
+                <li>
+                    <strong>GitHub repository</strong>
+                    <p>Open
+                        <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener noreferrer">GitHub Settings &rarr; Developer settings &rarr; Personal access tokens</a>
+                        and create a token with repository access (<code>repo</code> for classic tokens, or the equivalent repository permissions for fine-grained tokens).</p>
+                </li>
+                <li>
+                    <strong>Render web service</strong>
+                    <p>Open
+                        <a href="https://dashboard.render.com/u/settings#api-keys" target="_blank" rel="noopener noreferrer">Render Dashboard &rarr; Account Settings &rarr; API Keys</a>
+                        and create an API key. The deployment flow uses it to create and configure the free web service.</p>
+                </li>
+            </ol>
+            <p>Click <strong>Deploy Now</strong>, enter the credentials, optionally save them to <code>backend/.env</code>, and start the deployment.</p>
 
         </div>
 
@@ -378,6 +326,15 @@ Waiting for SQL Schema...
     <!-- ====================================== -->
 
     <button
+        id="deployBtn"
+        type="button"
+        disabled>
+
+        🚀 Deploy Now (Free tiers)
+
+    </button>
+
+    <button
         id="downloadBtn"
         disabled>
 
@@ -385,7 +342,161 @@ Waiting for SQL Schema...
 
     </button>
 
+    <div id="deploymentStatus" role="status" aria-live="polite"></div>
 
+</div>
+
+<!-- ====================================== -->
+<!-- CLOUD DEPLOYMENT MODAL -->
+<!-- ====================================== -->
+
+<div id="deployModalBackdrop" class="deploy-modal-backdrop" aria-hidden="true">
+    <div class="deploy-modal" role="dialog" aria-modal="true" aria-labelledby="deployModalTitle">
+        <div class="deploy-modal-header">
+            <h3 id="deployModalTitle">
+                <span>🚀</span> Cloud Deployment (free tiers)
+            </h3>
+            <button type="button" class="deploy-close-btn" id="closeDeployModalBtn" aria-label="Close modal">&times;</button>
+        </div>
+
+        <div class="deploy-modal-body">
+            <!-- 1. CONFIGURATION FORM -->
+            <div id="deployConfigForm">
+                <div class="deploy-info-banner">
+                    Automated deployment applies <strong>database/schema.sql</strong> to <strong>Neon</strong>, pushes the project to <strong>GitHub</strong>, then requests a <strong>free Render web service</strong>. Render free services may sleep when idle and have limited monthly usage; account-level billing verification may still be required.
+                </div>
+
+                <!-- NEON DB -->
+                <div class="deploy-field-card">
+                    <div class="deploy-field-header">
+                        <span class="deploy-field-title">🐘 1. Neon Database</span>
+                        <span id="neonStatusBadge" class="deploy-status-badge not-configured">Not Set</span>
+                    </div>
+                    <label for="neonApiKey">Neon API Key</label>
+                    <input type="password" id="neonApiKey" class="deploy-input" placeholder="neon_api_key_..." autocomplete="off">
+                    <div class="deploy-hint">
+                        Or enter direct Neon connection string below:
+                    </div>
+                    <label for="neonDatabaseUrl">Neon Database URL (optional if API key provided)</label>
+                    <input type="password" id="neonDatabaseUrl" class="deploy-input" placeholder="postgresql://neondb_owner:...@ep-....neon.tech/neondb?sslmode=require" autocomplete="off">
+                    <div class="deploy-hint">
+                        Get your Neon API Key from <a href="https://console.neon.tech/app/settings/api-keys" target="_blank" rel="noopener noreferrer">Neon Console &rarr; API Keys</a>.
+                    </div>
+                </div>
+
+                <!-- GITHUB -->
+                <div class="deploy-field-card">
+                    <div class="deploy-field-header">
+                        <span class="deploy-field-title">🐙 2. GitHub Repository</span>
+                        <span id="githubStatusBadge" class="deploy-status-badge not-configured">Not Set</span>
+                    </div>
+                    <label for="githubToken">GitHub Personal Access Token (PAT)</label>
+                    <input type="password" id="githubToken" class="deploy-input" placeholder="ghp_... or github_pat_..." autocomplete="off">
+                    <label for="githubRepoName">Repository Name (optional)</label>
+                    <input type="text" id="githubRepoName" class="deploy-input" placeholder="ai-project-...">
+                    <div class="deploy-hint">
+                        Use a new or empty repository. Existing repositories with commits are never force-overwritten.
+                    </div>
+                    <label class="deploy-checkbox-row">
+                        <input type="checkbox" id="githubIsPrivate">
+                        Make repository private
+                    </label>
+                    <div class="deploy-hint">
+                        Create a token with <code>repo</code> scope at <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener noreferrer">GitHub Settings &rarr; Tokens</a>.
+                    </div>
+                </div>
+
+                <!-- RENDER -->
+                <div class="deploy-field-card">
+                    <div class="deploy-field-header">
+                        <span class="deploy-field-title">🚀 3. Render Web Service</span>
+                        <span id="renderStatusBadge" class="deploy-status-badge not-configured">Not Set</span>
+                    </div>
+                    <label for="renderApiKey">Render API Key</label>
+                    <input type="password" id="renderApiKey" class="deploy-input" placeholder="rnd_..." autocomplete="off">
+                    <label for="renderServiceName">Web Service Name (optional)</label>
+                    <input type="text" id="renderServiceName" class="deploy-input" placeholder="ai-app-...">
+                    <div class="deploy-hint">
+                        Get your API key at <a href="https://dashboard.render.com/u/settings#api-keys" target="_blank" rel="noopener noreferrer">Render Dashboard &rarr; Account Settings &rarr; API Keys</a>.
+                    </div>
+                </div>
+
+                <!-- EXTRA OPTIONS -->
+                <label class="deploy-checkbox-row">
+                    <input type="checkbox" id="saveToEnvCheck" checked>
+                    Save credentials to <code>backend/.env</code> for future deploys
+                </label>
+
+                <label class="deploy-checkbox-row">
+                    <input type="checkbox" id="simulateDeployCheck">
+                    Demo only (no cloud resources are created and no live app URL is produced)
+                </label>
+
+                <div class="deploy-modal-footer">
+                    <button type="button" class="deploy-secondary-btn" id="cancelDeployBtn">Cancel</button>
+                    <button type="button" class="deploy-primary-btn" id="startDeployBtn">🚀 Start Auto Deployment</button>
+                </div>
+            </div>
+
+            <!-- 2. PROGRESS & LOGS VIEW -->
+            <div id="deployProgressView" style="display:none;">
+                <div class="deploy-stepper">
+                    <div class="deploy-step-item" id="step-neon">
+                        <div class="deploy-step-icon">1</div>
+                        <div class="deploy-step-label">Neon DB</div>
+                    </div>
+                    <div class="deploy-step-item" id="step-github">
+                        <div class="deploy-step-icon">2</div>
+                        <div class="deploy-step-label">GitHub Repo</div>
+                    </div>
+                    <div class="deploy-step-item" id="step-render">
+                        <div class="deploy-step-icon">3</div>
+                        <div class="deploy-step-label">Render Service</div>
+                    </div>
+                    <div class="deploy-step-item" id="step-live">
+                        <div class="deploy-step-icon">4</div>
+                        <div class="deploy-step-label">Live App</div>
+                    </div>
+                </div>
+
+                <div id="deployTerminal" class="deploy-terminal" aria-live="polite"></div>
+
+                <!-- SUCCESS CARD -->
+                <div id="deploySuccessCard" class="deploy-success-card" style="display:none;">
+                    <div id="deploySuccessBadge" class="deploy-success-badge">✅ Deployed Successfully</div>
+                    <h4 id="deploySuccessTitle">Your Application is Live on Render!</h4>
+                    <p id="deploySuccessDescription">The database schema was applied to Neon, code pushed to GitHub, and web service deployed.</p>
+
+                    <!-- OPENABLE LIVE LINK -->
+                    <a id="deployedLiveLink" href="#" target="_blank" rel="noopener noreferrer" class="btn-open-deployed-app">
+                        🌐 Open Live Application &rarr;
+                    </a>
+
+                    <div class="deploy-links-grid">
+                        <div class="deploy-link-box">
+                            <strong>🐘 Neon Database</strong>
+                            <span id="deployNeonSummary">Connected &amp; Tables Created</span>
+                        </div>
+                        <div class="deploy-link-box">
+                            <strong>🐙 GitHub Repository</strong>
+                            <a id="deployGithubLink" href="#" target="_blank" rel="noopener noreferrer">View Repository</a>
+                        </div>
+                        <div class="deploy-link-box">
+                            <strong>🚀 Render Dashboard</strong>
+                            <a id="deployRenderLink" href="#" target="_blank" rel="noopener noreferrer">View on Render</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="deployErrorCard" style="display:none;" class="deploy-terminal-line error"></div>
+
+                <div class="deploy-modal-footer">
+                    <button type="button" class="deploy-secondary-btn" id="backToConfigBtn" style="display:none;">&larr; Back to Config</button>
+                    <button type="button" class="deploy-primary-btn" id="finishDeployBtn" style="display:none;">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 
@@ -427,15 +538,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-d
 
 <script src="{{ url_for('static', filename='js/project.js') }}"></script>
 
-<script src="{{ url_for('static', filename='js/frontend.js') }}"></script>
-
- <script src="{{ url_for('static', filename='js/backend.js') }}"></script>
-
 <script src="{{ url_for('static', filename='js/script.js') }}"></script>
-
-<script src="{{ url_for('static', filename='js/architecture.js') }}"></script>
-
-<script src="{{ url_for('static', filename='js/database.js') }}"></script>
 
 
 </body>

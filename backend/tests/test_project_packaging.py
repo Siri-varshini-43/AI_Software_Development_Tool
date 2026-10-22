@@ -1,10 +1,12 @@
+import json
+import io
 import os
 import tempfile
 import unittest
 import zipfile
 from unittest.mock import patch
 
-from app import create_project_zip
+from app import app, create_project_zip
 from test_project_validator import valid_project
 
 
@@ -60,6 +62,47 @@ class ProjectPackagingTests(unittest.TestCase):
 
                 with open(zip_path, "rb") as archive:
                     self.assertEqual(archive.read(), previous_archive)
+
+    def test_download_contains_only_the_selected_partial_project_files(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            current_path = os.path.join(temporary_directory, "project1")
+            other_path = os.path.join(temporary_directory, "project2")
+            files = valid_project()
+            partial_manifest = json.loads(files["project_manifest.json"])
+            partial_manifest["generation_status"] = "partial"
+            self._write_project(
+                current_path,
+                {
+                    "project_manifest.json": json.dumps(partial_manifest),
+                    "backend/app.py": "app = None\n",
+                },
+            )
+            self._write_project(
+                other_path,
+                {
+                    "backend/app.py": "other_project = True\n",
+                    "other.txt": "belongs to project2",
+                },
+            )
+
+            with patch("app.GENERATED_PROJECTS_DIR", temporary_directory):
+                response = app.test_client().get(
+                    "/api/download-project?project_id=project1"
+                )
+            archive_data = response.get_data()
+            response.close()
+
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("project1.zip", response.headers["Content-Disposition"])
+            with zipfile.ZipFile(io.BytesIO(archive_data)) as archive:
+                self.assertEqual(
+                    set(archive.namelist()),
+                    {"project_manifest.json", "backend/app.py"},
+                )
+                self.assertEqual(
+                    archive.read("backend/app.py").replace(b"\r\n", b"\n"),
+                    b"app = None\n",
+                )
 
 
 if __name__ == "__main__":

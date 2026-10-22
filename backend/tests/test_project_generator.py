@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from agents.project_generator import (
     GENERATED_PROJECTS_DIR,
+    PROJECT_CODE_GENERATION_TIMEOUT_SECONDS,
     _generate_file_group,
     _generate_frontend_files,
     _missing_referenced_files,
@@ -24,12 +25,69 @@ from agents.project_generator import (
     generate_project,
     migrate_legacy_project,
 )
+from services.ollama_service import GenerationDeadlineExceeded
 from agents.project_manifest import create_project_manifest
 from agents.project_validator import _route_errors
 from agents.project_validator import validate_project
 
 
 class ParseProjectFilesTests(unittest.TestCase):
+    def test_project_generation_deadline_preserves_partial_files_as_success(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            project_path = os.path.join(temporary_directory, "project1")
+
+            def generate_until_timeout(*_args, project_path, **_kwargs):
+                os.makedirs(project_path, exist_ok=True)
+                manifest = create_project_manifest(
+                    "sample requirements",
+                    {},
+                    {},
+                    {},
+                    {},
+                )
+                with open(
+                    os.path.join(project_path, "project_manifest.json"),
+                    "w",
+                    encoding="utf-8",
+                ) as file:
+                    json.dump(manifest, file)
+                with open(
+                    os.path.join(project_path, "backend.py"),
+                    "w",
+                    encoding="utf-8",
+                ) as file:
+                    file.write("app = None\n")
+                raise GenerationDeadlineExceeded("time limit")
+
+            with patch(
+                "agents.project_generator._generate_project",
+                side_effect=generate_until_timeout,
+            ), patch(
+                "agents.project_generator.PROJECT_CODE_GENERATION_TIMEOUT_SECONDS",
+                -1,
+            ):
+                result = generate_project(
+                    "sample requirements",
+                    {},
+                    {},
+                    {},
+                    {},
+                    project_path=project_path,
+                )
+
+        self.assertTrue(result["success"])
+        self.assertTrue(result["partial"])
+        self.assertIn("15-minute limit", result["message"])
+        self.assertIn("backend.py", {file["path"] for file in result["files"]})
+        saved_manifest = json.loads(
+            next(
+                file["content"]
+                for file in result["files"]
+                if file["path"] == "project_manifest.json"
+            )
+        )
+        self.assertEqual(saved_manifest["generation_status"], "partial")
+
     def test_manifest_captures_files_entities_contracts_pages_and_dependencies(self):
         manifest = create_project_manifest(
             "Build a patient portal.",
@@ -1143,6 +1201,100 @@ class ParseProjectFilesTests(unittest.TestCase):
         prompt = generate_response.call_args_list[0].args[0]
         self.assertLess(len(prompt), 10000)
         self.assertIn("[context shortened]", prompt)
+
+    @patch("agents.project_generator.generate_response")
+    def test_invalid_file_is_automatically_regenerated_and_verified(
+        self,
+        generate_response
+    ):
+        from test_project_validator import valid_project
+
+        project_files = valid_project()
+        broken_files = dict(project_files)
+        # Introduce unrepairable syntax error in backend/models.py
+        broken_files["backend/models.py"] = "class Patient(:\n    pass\n"
+
+        initial_response = "".join(
+            f"### {filename}\n```text\n{content.rstrip()}\n```\n"
+            for filename, content in broken_files.items()
+        )
+        repaired_model_response = (
+            "### backend/models.py\n```python\n"
+            + project_files["backend/models.py"].rstrip()
+            + "\n```\n"
+        )
+        generate_response.side_effect = [initial_response, repaired_model_response]
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            with patch(
+                "agents.project_generator.GENERATED_PROJECTS_DIR",
+                output_dir
+            ):
+                result = generate_project(
+                    "Build a hospital management application.",
+                    {},
+                    {"sql_schema": project_files["database/schema.sql"]},
+                    {},
+                    {},
+                )
+
+            # Regeneration was triggered for the broken file
+            self.assertEqual(generate_response.call_count, 2)
+            # The second call requested regeneration of backend/models.py
+            second_call_prompt = generate_response.call_args_list[1].args[0]
+            self.assertIn("backend/models.py", second_call_prompt)
+
+            # Verified file on disk has valid code
+            saved_model = os.path.join(output_dir, "project", "backend", "models.py")
+            self.assertTrue(os.path.isfile(saved_model))
+            with open(saved_model, "r", encoding="utf-8") as f:
+                saved_content = f.read()
+            self.assertEqual(saved_content.strip(), project_files["backend/models.py"].strip())
+            self.assertTrue(result["success"])
+
+    @patch("agents.project_generator.generate_response")
+    def test_incomplete_code_is_automatically_regenerated(
+        self,
+        generate_response
+    ):
+        from test_project_validator import valid_project
+
+        project_files = valid_project()
+        broken_files = dict(project_files)
+        # Introduce placeholder / incomplete code in backend/routes.py
+        broken_files["backend/routes.py"] = "# TODO: implement route logic\n"
+
+        initial_response = "".join(
+            f"### {filename}\n```text\n{content.rstrip()}\n```\n"
+            for filename, content in broken_files.items()
+        )
+        repaired_routes_response = (
+            "### backend/routes.py\n```python\n"
+            + project_files["backend/routes.py"].rstrip()
+            + "\n```\n"
+        )
+        generate_response.side_effect = [initial_response, repaired_routes_response]
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            with patch(
+                "agents.project_generator.GENERATED_PROJECTS_DIR",
+                output_dir
+            ):
+                result = generate_project(
+                    "Build a hospital management application.",
+                    {},
+                    {"sql_schema": project_files["database/schema.sql"]},
+                    {},
+                    {},
+                )
+
+            self.assertEqual(generate_response.call_count, 2)
+            saved_routes = os.path.join(output_dir, "project", "backend", "routes.py")
+            self.assertTrue(os.path.isfile(saved_routes))
+            with open(saved_routes, "r", encoding="utf-8") as f:
+                saved_content = f.read()
+            self.assertNotIn("TODO", saved_content)
+            self.assertTrue(result["success"])
 
 
 if __name__ == "__main__":

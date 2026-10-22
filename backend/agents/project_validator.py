@@ -919,6 +919,26 @@ def validate_project(files, manifest=None, project_path=None):
                 )
 
     for filename, content in files.items():
+        path = PurePosixPath(filename)
+        if (
+            path.is_absolute()
+            or ".." in path.parts
+            or ":" in filename
+            or "\x00" in filename
+            or "\\" in filename
+            or not filename.strip()
+            or any(part.endswith((" ", ".")) for part in path.parts)
+        ):
+            errors.append(f"{filename}: incorrect or unsafe file path")
+        elif len(path.parts) == 1:
+            if filename not in {
+                "project_manifest.json", "README.md", ".env.example",
+                "requirements.txt", "Dockerfile", ".gitignore",
+            }:
+                errors.append(f"{filename}: unexpected or misplaced root file")
+        elif path.parts[0] not in {"backend", "frontend", "database", "tests"}:
+            errors.append(f"{filename}: file placed in invalid directory '{path.parts[0]}'")
+
         if not content.strip():
             errors.append(f"{filename}: file is empty")
             continue

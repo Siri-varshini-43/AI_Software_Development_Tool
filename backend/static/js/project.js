@@ -6,6 +6,19 @@ let generatedProjectFiles = [];
 let activeProjectPath = "";
 let activeProjectFilter = "all";
 
+// Keep the project only across a browser reload. A new visit to the site
+// starts with a clean dashboard, even when it happens in the same tab.
+const navigationEntry = performance.getEntriesByType("navigation")[0];
+const isPageReload = navigationEntry
+    ? navigationEntry.type === "reload"
+    : performance.navigation && performance.navigation.type === 1;
+if (!isPageReload) {
+    sessionStorage.removeItem("currentProjectId");
+}
+window.currentProjectId = isPageReload
+    ? sessionStorage.getItem("currentProjectId") || ""
+    : "";
+
 const projectBtn =
     document.getElementById("projectBtn");
 
@@ -49,6 +62,8 @@ if (projectBtn) {
                 "<h3>⏳ Generating Complete Project...</h3>";
 
             projectBtn.disabled = true;
+            window.currentProjectId = "";
+            sessionStorage.removeItem("currentProjectId");
             await loadProjectFiles([]);
             if (!generatedProjectFiles.length) {
                 document.getElementById("projectTree").textContent =
@@ -115,6 +130,8 @@ if (projectBtn) {
                     return;
                 }
 
+                window.currentProjectId = data.project_id;
+                sessionStorage.setItem("currentProjectId", data.project_id);
                 projectOutput.innerHTML = `
 
                     <h3>
@@ -185,12 +202,22 @@ async function loadProjectFiles(projectFiles = null) {
     try {
         let files = projectFiles;
         if (!Array.isArray(files)) {
-            const response = await fetch("/api/project-files");
-            const data = await response.json();
-            if (!response.ok || !data.success) {
-                throw new Error(data.message || "Unable to load generated files.");
+            if (!window.currentProjectId) {
+                files = [];
+            } else {
+                const requestedProjectId = window.currentProjectId;
+                const response = await fetch(
+                    `/api/project-files?project_id=${encodeURIComponent(requestedProjectId)}`
+                );
+                const data = await response.json();
+                if (window.currentProjectId !== requestedProjectId) {
+                    return;
+                }
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || "Unable to load generated files.");
+                }
+                files = data.files;
             }
-            files = data.files;
         }
 
         generatedProjectFiles = files
@@ -205,6 +232,11 @@ async function loadProjectFiles(projectFiles = null) {
                 };
             })
             .filter(file => file.path);
+
+        const downloadProjectButton = document.getElementById("downloadBtn");
+        if (downloadProjectButton) {
+            downloadProjectButton.disabled = !window.currentProjectId || !generatedProjectFiles.length;
+        }
 
         document.getElementById("fileCountBadge").textContent =
             String(generatedProjectFiles.length);
@@ -369,10 +401,19 @@ function displayProjectFile(file) {
     const codeBlock = document.querySelector("#codeViewer code");
     let content = file.content;
     if (content === undefined || content === null) {
-        fetch(`/api/project/file?path=${encodeURIComponent(file.path)}`)
+        const requestedProjectId = window.currentProjectId;
+        fetch(
+            `/api/project/file?project_id=${encodeURIComponent(requestedProjectId)}` +
+            `&path=${encodeURIComponent(file.path)}`
+        )
             .then(res => res.json())
             .then(data => {
-                if (data && data.success && typeof data.content === "string") {
+                if (
+                    window.currentProjectId === requestedProjectId &&
+                    data &&
+                    data.success &&
+                    typeof data.content === "string"
+                ) {
                     file.content = data.content;
                     if (activeProjectPath === file.path) {
                         displayProjectFile(file);
@@ -495,14 +536,53 @@ if (downloadBtn) {
 
     downloadBtn.addEventListener(
         "click",
-        () => {
+        async () => {
+            if (!window.currentProjectId) {
+                return;
+            }
 
-            window.location.href =
-                "/api/download-project";
+            const originalLabel = downloadBtn.textContent;
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = "Preparing download...";
 
+            try {
+                const response = await fetch(
+                    `/api/download-project?project_id=${encodeURIComponent(window.currentProjectId)}`
+                );
+                if (!response.ok) {
+                    let message = "Unable to download the project.";
+                    try {
+                        const data = await response.json();
+                        message = data.message || message;
+                    } catch {
+                        // Keep the generic message when the server did not return JSON.
+                    }
+                    throw new Error(message);
+                }
+
+                const archive = await response.blob();
+                const objectUrl = URL.createObjectURL(archive);
+                const link = document.createElement("a");
+                link.href = objectUrl;
+                link.download = `${window.currentProjectId}.zip`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                URL.revokeObjectURL(objectUrl);
+            } catch (error) {
+                console.error("Project download failed:", error);
+                alert(error.message || "Unable to download the project.");
+            } finally {
+                downloadBtn.textContent = originalLabel;
+                downloadBtn.disabled = !window.currentProjectId || !generatedProjectFiles.length;
+            }
         }
     );
 
+}
+
+if (window.currentProjectId) {
+    loadProjectFiles();
 }
 function escapeHtml(text) {
 

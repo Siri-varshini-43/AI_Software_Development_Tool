@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#080d20">
+    <title>BuildFlow AI | Software Engineering Platform</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body class="landing-page">
+    <main class="landing-shell">
+        <nav class="landing-nav" aria-label="Landing page navigation">
+            <a class="landing-brand" href="/" aria-label="BuildFlow AI home">
+                <span class="brand-mark">✦</span>
+                <span>BuildFlow <b>AI</b></span>
+            </a>
+            <a class="landing-nav-link" href="/dashboard">Open dashboard <span>↗</span></a>
+        </nav>
+
+        <section class="landing-hero">
+            <div class="landing-copy">
+                <div class="landing-eyebrow"><span></span> Your intelligent software studio</div>
+                <h1>Turn an idea into a <em>real product.</em></h1>
+                <p class="landing-lead">
+                    Describe what you want to build. BuildFlow AI turns your idea into requirements,
+                    architecture, database design, backend structure, and a ready-to-download project.
+                </p>
+                <div class="landing-actions">
+                    <a class="landing-cta" href="/dashboard">Get started <span>→</span></a>
+                    <a class="landing-secondary-cta" href="#workflow">See how it works</a>
+                </div>
+                <div class="landing-proof">
+                    <span class="proof-dot"></span>
+                    <span>One idea. A complete engineering workflow.</span>
+                </div>
+            </div>
+
+            <div class="landing-visual" aria-label="AI project workflow preview">
+                <div class="visual-orbit orbit-one"></div>
+                <div class="visual-orbit orbit-two"></div>
+                <div class="visual-glow"></div>
+                <div class="workflow-card main-workflow-card">
+                    <div class="workflow-card-top">
+                        <span class="window-dots"><i></i><i></i><i></i></span>
+                        <span class="workflow-status"><b></b> Pipeline ready</span>
+                    </div>
+                    <div class="workflow-title">Your next project starts here</div>
+                    <div class="workflow-prompt">“Create a smart library management system...”</div>
+                    <div class="workflow-progress"><span></span></div>
+                    <div class="workflow-stages">
+                        <div class="stage active"><span>✓</span><small>Requirements</small></div>
+                        <div class="stage active"><span>✓</span><small>Architecture</small></div>
+                        <div class="stage active"><span>✓</span><small>Database</small></div>
+                        <div class="stage current"><span>✦</span><small>Project</small></div>
+                    </div>
+                </div>
+                <div class="floating-chip chip-architecture"><span>⌘</span> Architecture mapped</div>
+                <div class="floating-chip chip-database"><span>◈</span> Database designed</div>
+            </div>
+        </section>
+
+        <section class="landing-features" id="workflow" aria-label="Platform workflow">
+            <div class="feature-intro">
+                <span class="section-kicker">A better way to build</span>
+                <h2>From blank page to build plan.</h2>
+            </div>
+            <div class="feature-grid">
+                <article class="feature-card">
+                    <span class="feature-number">01</span>
+                    <span class="feature-icon">⌁</span>
+                    <h3>Describe</h3>
+                    <p>Share your idea in plain language and let the platform shape the requirements.</p>
+                </article>
+                <article class="feature-card">
+                    <span class="feature-number">02</span>
+                    <span class="feature-icon">◌</span>
+                    <h3>Design</h3>
+                    <p>Generate a clear architecture, database schema, and implementation plan.</p>
+                </article>
+                <article class="feature-card">
+                    <span class="feature-number">03</span>
+                    <span class="feature-icon">↗</span>
+                    <h3>Build</h3>
+                    <p>Explore the generated files, download the project, and move toward deployment.</p>
+                </article>
+            </div>
+        </section>
+
+        <footer class="landing-footer">
+            <span>BuildFlow AI</span>
+            <span>Software engineering, accelerated.</span>
+        </footer>
+    </main>
+</body>
+
+</html>

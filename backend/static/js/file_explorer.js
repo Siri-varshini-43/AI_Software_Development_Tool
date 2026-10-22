@@ -17,14 +17,22 @@ async function loadGeneratedFiles() {
         "<h3>Loading generated files...</h3>";
 
     try {
+        if (!window.currentProjectId) {
+            fileExplorer.innerHTML = "<p>No current project.</p>";
+            return;
+        }
+        const requestedProjectId = window.currentProjectId;
 
         const response =
             await fetch(
-                "/api/project-files"
+                `/api/project-files?project_id=${encodeURIComponent(requestedProjectId)}`
             );
 
         const data =
             await response.json();
+        if (window.currentProjectId !== requestedProjectId) {
+            return;
+        }
 
         if (
             !response.ok ||

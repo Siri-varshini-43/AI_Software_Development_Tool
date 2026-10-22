@@ -2,6 +2,8 @@ import json
 import logging
 import os
 import time
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 import requests
 
@@ -16,6 +18,28 @@ READ_TIMEOUT_SECONDS = 180
 MAX_GENERATION_SECONDS = 1200
 PROGRESS_INTERVAL_CHUNKS = 25
 logger = logging.getLogger(__name__)
+_generation_deadline = ContextVar("generation_deadline", default=None)
+
+
+class GenerationDeadlineExceeded(TimeoutError):
+    pass
+
+
+@contextmanager
+def generation_time_limit(seconds):
+    token = _generation_deadline.set(time.monotonic() + seconds)
+    try:
+        yield
+    finally:
+        _generation_deadline.reset(token)
+
+
+def check_generation_time_limit():
+    deadline = _generation_deadline.get()
+    if deadline is not None and time.monotonic() >= deadline:
+        raise GenerationDeadlineExceeded(
+            "Project code generation exceeded its 15-minute time limit."
+        )
 
 
 def generate_response(
@@ -46,6 +70,14 @@ def generate_response(
     }
 
     started_at = time.monotonic()
+    deadline = _generation_deadline.get()
+    if deadline is None:
+        deadline = started_at + MAX_GENERATION_SECONDS
+    check_generation_time_limit()
+    read_timeout_seconds = min(
+        READ_TIMEOUT_SECONDS,
+        max(1, deadline - time.monotonic()),
+    )
     response_chunks = []
     chunk_count = 0
     reported_chunks = 0
@@ -56,12 +88,14 @@ def generate_response(
             OLLAMA_URL,
             json=payload,
             stream=True,
-            timeout=(CONNECT_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS)
+            timeout=(CONNECT_TIMEOUT_SECONDS, read_timeout_seconds)
         ) as response:
             response.raise_for_status()
 
             for line in response.iter_lines(decode_unicode=True):
-                if time.monotonic() - started_at > MAX_GENERATION_SECONDS:
+                if time.monotonic() >= deadline:
+                    if _generation_deadline.get() is not None:
+                        check_generation_time_limit()
                     raise TimeoutError(
                         "Ollama generation exceeded the 20-minute limit."
                     )
@@ -98,8 +132,9 @@ def generate_response(
                     completed = True
                     break
     except requests.Timeout as error:
+        check_generation_time_limit()
         raise TimeoutError(
-            "Ollama stopped responding for 180 seconds. Verify the local "
+            f"Ollama stopped responding for {read_timeout_seconds:g} seconds. Verify the local "
             "Ollama service and model are available."
         ) from error
 

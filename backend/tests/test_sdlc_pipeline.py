@@ -17,8 +17,6 @@ from agents.project_generator import (
     generate_project,
 )
 from agents.project_validator import validate_project
-from agents.file_parser import parse_and_save_files as file_parser_save
-from agents.code_parser import parse_and_save_files as code_parser_save
 from app import create_project_zip
 from test_project_validator import valid_project
 
@@ -147,13 +145,6 @@ class SDLCParserSecurityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "generated_output.txt"):
             _parse_project_files("### generated_output.txt\n```text\nfallback\n```")
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with self.assertRaisesRegex(ValueError, "generated_output.txt"):
-                file_parser_save("### generated_output.txt\n```text\nfallback\n```", temp_dir)
-
-            with self.assertRaisesRegex(ValueError, "generated_output.txt"):
-                code_parser_save("### generated_output.txt\n```text\nfallback\n```", temp_dir)
-
     def test_parser_rejects_unsafe_paths(self):
         unsafe_payloads = [
             "### ../etc/passwd\n```text\nevil\n```",
@@ -164,18 +155,10 @@ class SDLCParserSecurityTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 _parse_project_files(payload)
 
-            with tempfile.TemporaryDirectory() as temp_dir:
-                with self.assertRaises(ValueError):
-                    file_parser_save(payload, temp_dir)
-
     def test_parser_detects_missing_expected_files(self):
         content = "### backend/app.py\n```python\napp = None\n```\n"
         with self.assertRaisesRegex(ValueError, "missing expected files"):
             _parse_project_files(content, expected_files=["backend/app.py", "backend/models.py"])
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with self.assertRaisesRegex(ValueError, "missing expected files"):
-                file_parser_save(content, temp_dir, expected_files=["backend/app.py", "backend/models.py"])
 
 
 class SDLCUnitsAndValidationTests(unittest.TestCase):

@@ -416,5 +416,40 @@ class ProjectValidatorTests(unittest.TestCase):
         )
 
 
+    def test_detects_incorrect_file_paths(self):
+        files = valid_project()
+        files["backend/../evil.py"] = "# evil\n"
+        errors = validate_project(files)
+        self.assertTrue(any("incorrect or unsafe file path" in error for error in errors))
+
+        files2 = valid_project()
+        files2["backend\\app.py"] = "# backslash\n"
+        errors2 = validate_project(files2)
+        self.assertTrue(any("incorrect or unsafe file path" in error for error in errors2))
+
+    def test_detects_misplaced_files(self):
+        files = valid_project()
+        files["invalid_dir/foo.py"] = "x = 1\n"
+        errors = validate_project(files)
+        self.assertTrue(any("invalid directory" in error for error in errors))
+
+        files2 = valid_project()
+        files2["unexpected_root.txt"] = "hello\n"
+        errors2 = validate_project(files2)
+        self.assertTrue(any("unexpected or misplaced root file" in error for error in errors2))
+
+    def test_detects_empty_files_and_incomplete_code(self):
+        files = valid_project()
+        files["backend/models.py"] = ""
+        errors = validate_project(files)
+        self.assertTrue(any("file is empty" in error for error in errors))
+
+        files2 = valid_project()
+        files2["backend/models.py"] = "# TODO: implement models\n"
+        errors2 = validate_project(files2)
+        self.assertTrue(any("placeholder or incomplete implementation" in error for error in errors2))
+
+
 if __name__ == "__main__":
     unittest.main()
+

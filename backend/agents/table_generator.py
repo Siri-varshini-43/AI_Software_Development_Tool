@@ -15,8 +15,12 @@ APPROVED SYSTEM ARCHITECTURE:
 Design the PostgreSQL database based strictly on the
 approved architecture and requirements.
 
-The database must support the actors, modules and APIs
-defined in the approved architecture.
+Use the requirements as the source of truth for entities and relationships.
+The architecture diagram is context only.
+
+For each foreign-key column, set "foreign_key" to the referenced
+"table.column" (for example, "patients.id"). Use an empty string for
+columns that are not foreign keys.
 
 Return ONLY valid JSON.
 
